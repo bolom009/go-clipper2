@@ -121,7 +121,7 @@ func getSegmentIntersectPt(ln1a, ln1b, ln2a, ln2b Point64) (Point64, bool) {
 	det := dy1*dx2 - dy2*dx1
 	var ip Point64
 	if det == 0.0 {
-		return false, ip
+		return ip, false
 	}
 	t := ((float64(ln1a.X-ln2a.X) * dy2) - (float64(ln1a.Y-ln2a.Y) * dx2)) / det
 	if t <= 0.0 {

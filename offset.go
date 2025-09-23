@@ -213,12 +213,12 @@ func (co *ClipperOffset) executeInternal(delta float64) {
 	c.PreserveCollinear = co.PreserveCollinear
 	c.ReverseSolution = co.ReverseSolution != pathsReversed
 
-	c.AddSubject(co.solution)
+	c.addSubject(co.solution)
 
 	//if co.solutionTree != nil {
 	//	c.Execute(Union, fillRule, co.solutionTree)
 	//} else {
-	c.Execute(Union, fillRule, co.solution)
+	c.Execute(Union, fillRule, &co.solution)
 	//}
 }
 

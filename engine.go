@@ -1,6 +1,8 @@
 package go_clipper2
 
-import "math"
+import (
+	"math"
+)
 
 var (
 	negInf = math.Inf(-1)
@@ -111,10 +113,16 @@ type OutPt struct {
 }
 
 func NewOutPt(pt Point64, outrec *OutRec) *OutPt {
-	return &OutPt{
+	out := &OutPt{
 		pt:     pt,
 		outrec: outrec,
+		horz:   nil,
 	}
+
+	out.prev = out
+	out.next = out
+
+	return out
 }
 
 type Vertex struct {
@@ -233,7 +241,6 @@ func addPathsToVertexList(paths Paths64, polytype PathType, isOpen bool, minimaL
 			continue
 		}
 
-		// Определяем направление
 		var goingUp bool
 		if isOpen {
 			currV := v0.next
@@ -282,14 +289,11 @@ func addPathsToVertexList(paths Paths64, polytype PathType, isOpen bool, minimaL
 			} else {
 				addLocMin(prevV, polytype, isOpen, minimaList)
 			}
-
-			// Для замкнутых путей
-			if goingUp != goingUp0 {
-				if goingUp0 {
-					addLocMin(prevV, polytype, false, minimaList)
-				} else {
-					prevV.flags |= LocalMax
-				}
+		} else if goingUp != goingUp0 {
+			if goingUp0 {
+				addLocMin(prevV, polytype, false, minimaList)
+			} else {
+				prevV.flags |= LocalMax
 			}
 		}
 	}
@@ -403,11 +407,7 @@ func pointsEqual(p1, p2 Point64) bool {
 
 func getPrevHotEdge(ae *Active) *Active {
 	prev := ae.prevInAEL
-	for {
-		if prev != nil && (isOpen(prev) || !isHotEdge(prev)) {
-			break
-		}
-
+	for prev != nil && (isOpen(prev) || !isHotEdge(prev)) {
 		prev = prev.prevInAEL
 	}
 
@@ -454,7 +454,7 @@ func isHeadingLeftHorz(ae *Active) bool {
 	return math.IsInf(ae.dx, 1)
 }
 
-func swapActives(ae1, ae2 *Active) {
+func swapActives(ae1, ae2 **Active) {
 	*ae1, *ae2 = *ae2, *ae1
 }
 
@@ -721,7 +721,7 @@ func isValidAelOrder(resident, newcomer *Active) bool {
 	return (CrossProduct(prevPrevVertex(resident).pt, newcomer.bot, prevPrevVertex(newcomer).pt) > 0) == newcomerIsLeft
 }
 
-func InsertRightEdge(ae, ae2 *Active) {
+func insertRightEdge(ae, ae2 *Active) {
 	ae2.nextInAEL = ae.nextInAEL
 	if ae.nextInAEL != nil {
 		ae.nextInAEL.prevInAEL = ae2
@@ -759,7 +759,6 @@ func addOutPt(ae *Active, pt Point64) *OutPt {
 	}
 
 	newOp := NewOutPt(pt, outrec)
-	// двунаправленная связка
 	opBack.prev = newOp
 	newOp.prev = opFront
 	newOp.next = opBack
@@ -778,7 +777,6 @@ func swapOutrecs(ae1, ae2 *Active) {
 
 	// Если оба указывают на один OutRec
 	if or1 != nil && or2 != nil && or1 == or2 {
-		// Меняем местами frontEdge и backEdge у этого OutRec
 		or1.frontEdge, or1.backEdge = or1.backEdge, or1.frontEdge
 		return
 	}

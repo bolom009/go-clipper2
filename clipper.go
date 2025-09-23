@@ -49,12 +49,12 @@ func BooleanOpPaths64(clipType ClipType, subject Paths64, clip Paths64, fillRule
 
 	solution := make(Paths64, 0)
 	c := NewClipper64()
-	c.AddPaths(subject, Subject)
+	c.AddPaths(subject, Subject, false)
 	if clip != nil {
-		c.AddPaths(clip, Clip)
+		c.AddPaths(clip, Clip, false)
 	}
 
-	c.Execute(clipType, fillRule, solution)
+	c.Execute(clipType, fillRule, &solution)
 	return solution
 }
 
@@ -65,14 +65,13 @@ func BooleanOpPathsD(clipType ClipType, subject PathsD, clip PathsD, fillRule Fi
 
 	solution := make(PathsD, 0)
 	c := NewClipperD(precision)
-	c.AddSubject(subject)
+	c.AddPaths(subject, Subject, false)
 	if clip != nil {
-		c.AddClip(clip)
+		c.AddPaths(clip, Clip, false)
 	}
+
 	c.Execute(clipType, fillRule, solution)
 	return solution
-
-	return nil
 }
 
 // TODO

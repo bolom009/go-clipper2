@@ -1,6 +1,7 @@
 package go_clipper2
 
 import (
+	"fmt"
 	"math"
 	"slices"
 	"sort"
@@ -83,15 +84,15 @@ func NewClipperBase() *ClipperBase {
 	}
 }
 
-func (c *ClipperBase) AddSubject(path Paths64) {
-	c.AddPaths(path, Subject, false)
+func (c *ClipperBase) addSubject(path Paths64) {
+	c.addPaths(path, Subject, false)
 }
 
-func (c *ClipperBase) AddPaths(paths Paths64, polytype PathType, isOpen bool) {
-	c.BaseAddPaths(paths, polytype, isOpen)
+func (c *ClipperBase) addPaths(paths Paths64, polytype PathType, isOpen bool) {
+	c.baseAddPaths(paths, polytype, isOpen)
 }
 
-func (c *ClipperBase) BaseAddPaths(paths Paths64, polytype PathType, isOpen bool) {
+func (c *ClipperBase) baseAddPaths(paths Paths64, polytype PathType, isOpen bool) {
 	if isOpen {
 		c.hasOpenPaths = true
 	}
@@ -100,39 +101,33 @@ func (c *ClipperBase) BaseAddPaths(paths Paths64, polytype PathType, isOpen bool
 	addPathsToVertexList(paths, polytype, isOpen, &c.minimaList, &c.vertexList)
 }
 
-func (c *ClipperBase) Execute(clipType ClipType, fillRule FillRule, solutionClosed Paths64) bool {
-	return c.ExecuteImpl(clipType, fillRule, solutionClosed, nil)
-}
+func (c *ClipperBase) execute(clipType ClipType, fillRule FillRule,
+	solutionClosed, solutionOpen *Paths64) bool {
 
-func (c *ClipperBase) ExecuteImpl(clipType ClipType, fillRule FillRule,
-	solutionClosed Paths64, solutionOpen Paths64) bool {
-
-	solutionClosed = make(Paths64, 0)
-	solutionOpen = make(Paths64, 0)
+	//solutionClosed = make(Paths64, 0)
+	//solutionOpen = make(Paths64, 0)
 
 	c.executeInternal(clipType, fillRule)
 	c.buildPaths(solutionClosed, solutionOpen)
 
-	c.ClearSolutionOnly()
+	c.clearSolutionOnly()
 	return c.succeeded
 }
 
-func (c *ClipperBase) buildPaths(solutionClosed, solutionOpen Paths64) bool {
+func (c *ClipperBase) buildPaths(solutionClosed, solutionOpen *Paths64) bool {
 	// Очищаем решения
-	solutionClosed = solutionClosed[:0]
-	solutionOpen = solutionOpen[:0]
+	*solutionClosed = (*solutionClosed)[:0]
+	*solutionOpen = (*solutionOpen)[:0]
 
-	if cap(c.outrecList) < len(solutionClosed) {
-		solutionOpen = make(Paths64, 0, len(c.outrecList))
-	} else {
-		solutionOpen = solutionOpen[:0]
+	if cap(c.outrecList) < len(*solutionClosed) {
+		*solutionOpen = make(Paths64, 0, len(c.outrecList))
 	}
 
-	if cap(c.outrecList) < len(solutionClosed) {
-		solutionClosed = make(Paths64, 0, len(c.outrecList))
-	} else {
-		solutionClosed = solutionClosed[:0]
+	if cap(c.outrecList) < len(*solutionClosed) {
+		*solutionClosed = make(Paths64, 0, len(c.outrecList))
 	}
+
+	fmt.Println("buildPaths", len(c.outrecList))
 
 	i := 0
 	for i < len(c.outrecList) {
@@ -144,13 +139,13 @@ func (c *ClipperBase) buildPaths(solutionClosed, solutionOpen Paths64) bool {
 		var path []Point64
 		if outrec.isOpen {
 			if c.buildPath(outrec.pts, c.ReverseSolution, true, &path) {
-				solutionOpen = append(solutionOpen, path)
+				*solutionOpen = append(*solutionOpen, path)
 			}
 		} else {
 			c.cleanCollinear(outrec)
 			// путя всегда ориентированы по положительной ориентации
 			if c.buildPath(outrec.pts, c.ReverseSolution, false, &path) {
-				solutionClosed = append(solutionClosed, path)
+				*solutionClosed = append(*solutionClosed, path)
 			}
 		}
 	}
@@ -251,14 +246,19 @@ func (c *ClipperBase) executeInternal(ct ClipType, fillRule FillRule) {
 	if !ok {
 		return
 	}
+
 	c.succeeded = true
 	for c.succeeded {
+		fmt.Println("LOOP TIMES", y)
+
 		c.insertLocalMinimaIntoAEL(y)
 
-		var ae *Active
-		var ok bool = true
-		for ok {
-			ae, ok = c.popHorz()
+		for {
+			ae, ok := c.popHorz()
+			if !ok {
+				break
+			}
+
 			c.doHorizontal(ae)
 		}
 
@@ -269,7 +269,7 @@ func (c *ClipperBase) executeInternal(ct ClipType, fillRule FillRule) {
 
 		c.currentBotY = y // bottom of scanbeam
 
-		y, ok := c.popScanline()
+		y, ok = c.popScanline()
 		if !ok {
 			break
 		}
@@ -277,9 +277,14 @@ func (c *ClipperBase) executeInternal(ct ClipType, fillRule FillRule) {
 		c.doIntersections(y)
 		c.doTopOfScanbeam(y)
 
-		ok = true
-		for ok {
-			ae, ok = c.popHorz()
+		fmt.Println("===> Y", y)
+
+		for {
+			ae, ok := c.popHorz()
+			if !ok {
+				break
+			}
+
 			c.doHorizontal(ae)
 		}
 	}
@@ -290,6 +295,7 @@ func (c *ClipperBase) executeInternal(ct ClipType, fillRule FillRule) {
 }
 
 func (c *ClipperBase) doTopOfScanbeam(y int64) {
+	fmt.Println("doTopOfScanbeam", y)
 	c.sel = nil // сбросим флаг горизонтальных линий
 	ae := c.actives
 	for ae != nil {
@@ -719,7 +725,6 @@ func (c *ClipperBase) doHorizontal(horz *Active) {
 		vertexMax = getCurrYMaximaVertex(horz)
 	}
 
-	// определяем направление ходьбы
 	leftX, rightX, isLeftToRight := resetHorzDirection(horz, vertexMax)
 	if isHotEdge(horz) {
 		op := addOutPt(horz, Point64{X: horz.curX, Y: Y})
@@ -735,14 +740,12 @@ func (c *ClipperBase) doHorizontal(horz *Active) {
 		}
 
 		for ae != nil {
-			// Проверка выхода
 			if ae.vertexTop == vertexMax {
-				// Обработка maxima
 				if isHotEdge(horz) && isJoined(ae) {
 					c.split(ae, ae.top)
 				}
 				if isHotEdge(horz) {
-					for ae.vertexTop != vertexMax {
+					for horz.vertexTop != vertexMax {
 						addOutPt(horz, horz.top)
 						c.updateEdgeIntoAEL(horz)
 					}
@@ -757,9 +760,8 @@ func (c *ClipperBase) doHorizontal(horz *Active) {
 				return
 			}
 
-			// Обработка других случаев
 			var pt Point64
-			if ae.vertexTop != horz.vertexTop || isVertexOpenEnd(horz.vertexTop) {
+			if vertexMax != horz.vertexTop || isOpenEnd(horz) {
 				// Проверки на условие пересечения/прерванных линий
 				if (isLeftToRight && ae.curX > rightX) || (!isLeftToRight && ae.curX < leftX) {
 					break
@@ -768,10 +770,12 @@ func (c *ClipperBase) doHorizontal(horz *Active) {
 					pt = nextVertex(horz).pt
 					// дополнительные проверки
 					if isOpen(ae) && !isSamePolyType(ae, horz) && !isHotEdge(ae) {
-						if (isLeftToRight && topX(ae, pt.Y) > pt.X) || (!isLeftToRight && topX(ae, pt.Y) < pt.X) {
+						if (isLeftToRight && topX(ae, pt.Y) > pt.X) ||
+							(!isLeftToRight && topX(ae, pt.Y) < pt.X) {
 							break
 						}
-					} else if (isLeftToRight && topX(ae, pt.Y) >= pt.X) || (!isLeftToRight && topX(ae, pt.Y) <= pt.X) {
+					} else if (isLeftToRight && topX(ae, pt.Y) >= pt.X) ||
+						(!isLeftToRight && topX(ae, pt.Y) <= pt.X) {
 						break
 					}
 				}
@@ -780,6 +784,7 @@ func (c *ClipperBase) doHorizontal(horz *Active) {
 			pt = Point64{X: ae.curX, Y: Y}
 
 			if isLeftToRight {
+				fmt.Println("==========2222=====> isLeftToRight")
 				c.intersectEdges(horz, ae, pt)
 				c.swapPositionsInAEL(horz, ae)
 				c.checkJoinLeft(ae, pt, false)
@@ -799,13 +804,17 @@ func (c *ClipperBase) doHorizontal(horz *Active) {
 		}
 
 		// Проверки по завершению для open/closed
-		if isOpen(horz) && isOpenEnd(horz) {
+		if horzIsOpen && isOpenEnd(horz) {
 			if isHotEdge(horz) {
 				addOutPt(horz, horz.top)
 				if isFront(horz) {
-					horz.outrec.frontEdge = nil
+					if horz.outrec != nil {
+						horz.outrec.frontEdge = nil
+					}
 				} else {
-					horz.outrec.backEdge = nil
+					if horz.outrec != nil {
+						horz.outrec.backEdge = nil
+					}
 				}
 				horz.outrec = nil
 			}
@@ -816,18 +825,18 @@ func (c *ClipperBase) doHorizontal(horz *Active) {
 			break
 		}
 
-		// Есть ещё горизонтальные линии в пределах
 		if isHotEdge(horz) {
 			addOutPt(horz, horz.top)
 		}
+
 		c.updateEdgeIntoAEL(horz)
 
 		leftX, rightX, isLeftToRight = resetHorzDirection(horz, vertexMax)
 	}
 
 	if isHotEdge(horz) {
-		addOutPt(horz, horz.top)
-		c.addToHorzSegList(getLastOp(horz))
+		op := addOutPt(horz, horz.top)
+		c.addToHorzSegList(op)
 	}
 	c.updateEdgeIntoAEL(horz)
 }
@@ -887,12 +896,11 @@ func (c *ClipperBase) processHorzJoins() {
 		op1b.prev = op2b
 		op2b.next = op1b
 
-		if or1 == or2 { // join is actually split
+		if or1 == or2 {
 			or2 = c.newOutRec()
 			or2.pts = op1b
 			fixOutRecPts(or2)
 
-			// обновить or1.pts, если moved
 			if or1.pts.outrec == or2 {
 				or1.pts = j.op1
 				or1.pts.outrec = or1
@@ -932,13 +940,19 @@ func (c *ClipperBase) processHorzJoins() {
 
 func (c *ClipperBase) reset() {
 	if !c.isSortedMinimaList {
+		// c.minimaList.Sort(new LocMinSorter());
 		sort.Slice(c.minimaList, func(i, j int) bool {
-			return c.minimaList[i].Vertex.pt.Y < c.minimaList[j].Vertex.pt.Y
+			return c.minimaList[i].Vertex.pt.Y > c.minimaList[j].Vertex.pt.Y
 		})
 		c.isSortedMinimaList = true
 	}
 
-	c.scanlineList = c.scanlineList[:0]
+	if cap(c.scanlineList) < len(c.minimaList) {
+		c.scanlineList = make([]int64, 0, len(c.minimaList))
+	} else {
+		c.scanlineList = c.scanlineList[:0]
+	}
+
 	for i := len(c.minimaList) - 1; i >= 0; i-- {
 		c.scanlineList = append(c.scanlineList, c.minimaList[i].Vertex.pt.Y)
 	}
@@ -950,7 +964,7 @@ func (c *ClipperBase) reset() {
 	c.succeeded = true
 }
 
-func (c *ClipperBase) ClearSolutionOnly() {
+func (c *ClipperBase) clearSolutionOnly() {
 	for c.actives != nil {
 		c.deleteFromAEL(c.actives)
 	}
@@ -985,32 +999,6 @@ func (c *ClipperBase) deleteFromAEL(ae *Active) {
 	// delete &ae;
 }
 
-func (c *ClipperBase) Reset() {
-	if !c.isSortedMinimaList {
-		// c.minimaList.Sort(new LocMinSorter());
-		sort.Slice(c.minimaList, func(i, j int) bool {
-			return c.minimaList[i].Vertex.pt.Y < c.minimaList[j].Vertex.pt.Y
-		})
-		c.isSortedMinimaList = true
-	}
-
-	if cap(c.scanlineList) < len(c.minimaList) {
-		c.scanlineList = make([]int64, 0, len(c.minimaList))
-	} else {
-		c.scanlineList = c.scanlineList[:0]
-	}
-
-	for i := len(c.minimaList) - 1; i >= 0; i-- {
-		c.scanlineList = append(c.scanlineList, c.minimaList[i].Vertex.pt.Y)
-	}
-
-	c.currentBotY = 0
-	c.currentLocMin = 0
-	c.actives = nil
-	c.sel = nil
-	c.succeeded = true
-}
-
 func (c *ClipperBase) insertScanline(y int64) {
 	index, _ := slices.BinarySearch(c.scanlineList, y)
 	if index >= 0 {
@@ -1035,11 +1023,11 @@ func (c *ClipperBase) popScanline() (int64, bool) {
 	return y, true
 }
 
-func (c *ClipperBase) HasLocMinAtY(y int64) bool {
+func (c *ClipperBase) hasLocMinAtY(y int64) bool {
 	return c.currentLocMin < len(c.minimaList) && c.minimaList[c.currentLocMin].Vertex.pt.Y == y
 }
 
-func (c *ClipperBase) PopLocalMinima() *LocalMinima {
+func (c *ClipperBase) popLocalMinima() *LocalMinima {
 	cur := c.minimaList[c.currentLocMin]
 	c.currentLocMin++
 
@@ -1048,10 +1036,10 @@ func (c *ClipperBase) PopLocalMinima() *LocalMinima {
 
 func (c *ClipperBase) AddPath(path Path64, polytype PathType, isOpen bool) {
 	tmp := Paths64{path}
-	c.BaseAddPaths(tmp, polytype, isOpen)
+	c.baseAddPaths(tmp, polytype, isOpen)
 }
 
-func (c *ClipperBase) AddReuseableData(reuseableData *ReuseableDataContainer64) {
+func (c *ClipperBase) addReuseableData(reuseableData *ReuseableDataContainer64) {
 	if len(reuseableData.minimaList) == 0 {
 		return
 	}
@@ -1124,7 +1112,7 @@ func (c *ClipperBase) isContributingClosed(ae *Active) bool {
 	}
 }
 
-func (c *ClipperBase) IsContributingOpen(ae *Active) bool {
+func (c *ClipperBase) isContributingOpen(ae *Active) bool {
 	var isInSubj, isInClip bool
 	switch c.fillRule {
 	case Positive:
@@ -1274,6 +1262,7 @@ func (c *ClipperBase) insertLeftEdge(ae *Active) {
 			ae2 = ae2.nextInAEL
 		}
 	}
+
 	ae.nextInAEL = ae2.nextInAEL
 	if ae2.nextInAEL != nil {
 		ae2.nextInAEL.prevInAEL = ae
@@ -1285,11 +1274,11 @@ func (c *ClipperBase) insertLeftEdge(ae *Active) {
 func (c *ClipperBase) insertLocalMinimaIntoAEL(botY int64) {
 	// Add any local minima (if any) at botY ...
 	// NB horizontal local minima edges should contain locMin.vertex.prev
-	for c.HasLocMinAtY(botY) {
-		locMin := c.PopLocalMinima()
+	for c.hasLocMinAtY(botY) {
+		locMin := c.popLocalMinima()
 
 		var leftBound *Active
-		if (locMin.Vertex.flags & OpenStart) != 0 {
+		if (locMin.Vertex.flags & OpenStart) != None {
 			leftBound = nil
 		} else {
 			leftBound = &Active{
@@ -1305,7 +1294,7 @@ func (c *ClipperBase) insertLocalMinimaIntoAEL(botY int64) {
 		}
 
 		var rightBound *Active
-		if (locMin.Vertex.flags & OpenEnd) != 0 {
+		if (locMin.Vertex.flags & OpenEnd) != None {
 			rightBound = nil
 		} else {
 			rightBound = &Active{
@@ -1325,14 +1314,14 @@ func (c *ClipperBase) insertLocalMinimaIntoAEL(botY int64) {
 		if leftBound != nil && rightBound != nil {
 			if isHorizontal(leftBound) {
 				if isHeadingRightHorz(leftBound) {
-					swapActives(leftBound, rightBound)
+					swapActives(&leftBound, &rightBound)
 				}
 			} else if isHorizontal(rightBound) {
 				if isHeadingLeftHorz(rightBound) {
-					swapActives(leftBound, rightBound)
+					swapActives(&leftBound, &rightBound)
 				}
 			} else if leftBound.dx < rightBound.dx {
-				swapActives(leftBound, rightBound)
+				swapActives(&leftBound, &rightBound)
 			}
 			// when leftBound.windDx == 1 polygon oriented ccw in Cartesian coords
 		} else if leftBound == nil {
@@ -1348,7 +1337,7 @@ func (c *ClipperBase) insertLocalMinimaIntoAEL(botY int64) {
 
 		if isOpen(leftBound) {
 			c.setWindCountForOpenPathEdge(leftBound)
-			contributing = c.IsContributingOpen(leftBound)
+			contributing = c.isContributingOpen(leftBound)
 		} else {
 			c.setWindCountForClosedPathEdge(leftBound)
 			contributing = c.isContributingClosed(leftBound)
@@ -1359,9 +1348,10 @@ func (c *ClipperBase) insertLocalMinimaIntoAEL(botY int64) {
 			rightBound.windCount = leftBound.windCount
 			rightBound.windCount2 = leftBound.windCount2
 
-			InsertRightEdge(leftBound, rightBound)
+			insertRightEdge(leftBound, rightBound)
 
 			if contributing {
+				fmt.Println("addLocalMinPoly contributing")
 				c.addLocalMinPoly(leftBound, rightBound, leftBound.bot, true)
 				if !isHorizontal(leftBound) {
 					c.checkJoinLeft(leftBound, leftBound.bot, false)
@@ -1495,6 +1485,7 @@ func (c *ClipperBase) checkJoinLeft(e *Active, pt Point64, checkCurrX bool) {
 }
 
 func (c *ClipperBase) addLocalMinPoly(ae1, ae2 *Active, pt Point64, isNew bool) *OutPt {
+	fmt.Println("addLocalMinPoly")
 	outrec := c.newOutRec()
 	ae1.outrec = outrec
 	ae2.outrec = outrec
@@ -1674,6 +1665,7 @@ func (c *ClipperBase) joinOutrecPaths(ae1, ae2 *Active) {
 }
 
 func (c *ClipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
+	fmt.Println("=====> IntersectEdges")
 	var resultOp *OutPt
 
 	// Обработка открытых путей
@@ -1682,13 +1674,15 @@ func (c *ClipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 			return
 		}
 		if isOpen(ae2) {
-			swapActives(ae1, ae2)
+			swapActives(&ae1, &ae2)
 		}
 		if isJoined(ae2) {
 			c.split(ae2, pt)
 		}
-		if c.clipType == Union && !isHotEdge(ae2) {
-			return
+		if c.clipType == Union {
+			if !isHotEdge(ae2) {
+				return
+			}
 		} else if ae2.localMin.PolyType == Subject {
 			return
 		}
@@ -1710,19 +1704,31 @@ func (c *ClipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 
 		if isHotEdge(ae1) {
 			resultOp = addOutPt(ae1, pt)
-			if ae1.outrec != nil {
-				if isFront(ae1) {
+			if isFront(ae1) {
+				if ae1.outrec.frontEdge != nil {
 					ae1.outrec.frontEdge = nil
-				} else {
+				}
+			} else {
+				if ae1.outrec.backEdge != nil {
 					ae1.outrec.backEdge = nil
 				}
-				ae1.outrec = nil
 			}
+			ae1.outrec = nil
+
+			//if ae1.outrec != nil {
+			//	if isFront(ae1) {
+			//		ae1.outrec.frontEdge = nil
+			//	} else {
+			//		ae1.outrec.backEdge = nil
+			//	}
+			//	ae1.outrec = nil
+			//}
 		} else if pt == ae1.localMin.Vertex.pt && !isVertexOpenEnd(ae1.localMin.Vertex) {
 			// ищем другую сторону
 			if ae3 := findEdgeWithMatchingLocMin(ae1); ae3 != nil && isHotEdge(ae3) {
 				ae1.outrec = ae3.outrec
-				if isFront(ae1) {
+				if ae1.windDx > 0 {
+					//if isFront(ae1) {
 					setSides(ae3.outrec, ae1, ae3)
 				} else {
 					setSides(ae3.outrec, ae3, ae1)
@@ -1744,7 +1750,6 @@ func (c *ClipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 		c.split(ae2, pt)
 	}
 
-	// Обновление windCount
 	if ae1.localMin.PolyType == ae2.localMin.PolyType {
 		if c.fillRule == EvenOdd {
 			oldWindCount := ae1.windCount
@@ -1766,12 +1771,20 @@ func (c *ClipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 		if c.fillRule != EvenOdd {
 			ae1.windCount2 += ae2.windDx
 		} else {
-			ae1.windCount2 = 1 - ae1.windCount2
+			if ae1.windCount2 == 0 {
+				ae1.windCount2 = 1
+			} else {
+				ae1.windCount2 = 0
+			}
 		}
 		if c.fillRule != EvenOdd {
 			ae2.windCount2 -= ae1.windDx
 		} else {
-			ae2.windCount2 = 1 - ae2.windCount2
+			if ae2.windCount2 == 0 {
+				ae2.windCount2 = 1
+			} else {
+				ae2.windCount2 = 0
+			}
 		}
 	}
 
@@ -1808,6 +1821,8 @@ func (c *ClipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 			addOutPt(ae2, pt)
 			swapOutrecs(ae1, ae2)
 		}
+
+		fmt.Println("========== 66666666666")
 		return
 	}
 
@@ -1837,13 +1852,14 @@ func (c *ClipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 		e2Wc2 = absInt(ae2.windCount2)
 	}
 
+	fmt.Println("========== 555555555555")
 	if !isSamePolyType(ae1, ae2) {
 		c.addLocalMinPoly(ae1, ae2, pt, false)
 	} else if oldE1WindCount == 1 && oldE2WindCount == 1 {
 		switch c.clipType {
 		case Union:
 			if e1Wc2 > 0 && e2Wc2 > 0 {
-				return // выход
+				return
 			}
 			c.addLocalMinPoly(ae1, ae2, pt, false)
 		case Difference:
