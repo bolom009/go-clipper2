@@ -345,7 +345,6 @@ func Ellipse64(center Point64, radiusX, radiusY float64, steps int) Path64 {
 	dy := si
 
 	result := make(Path64, 0, steps)
-	// первый пункт — центр + радиус по X
 	result = append(result, Point64{
 		X: center.X + int64(radiusX),
 		Y: center.Y,
@@ -380,7 +379,6 @@ func EllipseD(center PointD, radiusX, radiusY float64, steps int) PathD {
 	dy := si
 
 	result := make(PathD, 0, steps)
-	// Первая точка — центр + радиус по X
 	result = append(result, PointD{X: center.X + radiusX, Y: center.Y})
 
 	for i := 1; i < steps; i++ {

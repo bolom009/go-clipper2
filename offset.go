@@ -35,7 +35,7 @@ type Group struct {
 }
 
 func NewGroup(paths Paths64, joinType JoinType, endType EndType) *Group {
-	if endType == 0 { // если default, установить EndTypePolygon
+	if endType == 0 {
 		endType = Polygon
 	}
 
@@ -71,15 +71,12 @@ func (g *Group) GetLowestPathInfo() (int, bool) {
 	for i, path := range g.inPaths {
 		a := math.MaxFloat64
 		for _, pt := range path {
-			// сравниваем Y и X
 			if pt.Y < botPt.Y || (pt.Y == botPt.Y && pt.X >= botPt.X) {
-				// пропускаем точки, которые выше или равны по X при той же Y
 				continue
 			}
 			if a == math.MaxFloat64 {
 				a = area64(path)
 				if a == 0 {
-					// invalid path, пропускаем
 					break
 				}
 				isNegArea = a < 0
@@ -93,7 +90,6 @@ func (g *Group) GetLowestPathInfo() (int, bool) {
 }
 
 type ClipperOffset struct {
-	// параметры
 	ArcTolerance      float64
 	MergeGroups       bool
 	MiterLimit        float64
@@ -163,18 +159,13 @@ func (co *ClipperOffset) executeInternal(delta float64) {
 		return
 	}
 
-	// Убедитесь, что есть достаточный слот для решения
 	capacity := co.CalcSolutionCapacity()
 	if nCap := cap(co.solution); nCap < capacity {
-		// он юзает встроенную функцию резервирования
-		// В Go можно просто оставить: co.solution = append(co.solution[:0], make([]Path64, 0, capacity)...)
 		co.solution = make(Paths64, 0, capacity)
 	} else {
-		// очистим
 		co.solution = co.solution[:0]
 	}
 
-	// если абсолютное значение delta очень мало, просто копируем пути
 	if math.Abs(delta) < 0.5 {
 		for _, group := range co.groupList {
 			for _, path := range group.inPaths {
@@ -224,7 +215,6 @@ func (co *ClipperOffset) executeInternal(delta float64) {
 
 func (co *ClipperOffset) doGroupOffset(group *Group) {
 	if group.endType == Polygon {
-		// если группа - полигоны
 		if group.lowestPathIdx < 0 {
 			co.delta = math.Abs(co.delta)
 		}
@@ -258,7 +248,7 @@ func (co *ClipperOffset) doGroupOffset(group *Group) {
 
 	for _, p := range group.inPaths {
 		c := p
-		path := Path64{} // output
+		path := Path64{}
 		cnt := len(c)
 
 		switch cnt {
@@ -267,7 +257,6 @@ func (co *ClipperOffset) doGroupOffset(group *Group) {
 			if group.endType == RoundET {
 				steps := int(math.Ceil(co.stepsPerRad * 2 * math.Pi))
 				path = Ellipse64(pt, absDelta, absDelta, steps)
-				// co.SetZ if needed
 			} else {
 				d := int(math.Ceil(co.groupDelta))
 				r := Rect64{
@@ -277,7 +266,6 @@ func (co *ClipperOffset) doGroupOffset(group *Group) {
 					pt.Y + int64(d),
 				}
 				path = r.AsPath()
-				// co.SetZ if needed
 			}
 
 			co.solution = append(co.solution, path)
@@ -321,7 +309,6 @@ func (co *ClipperOffset) buildNormals(path Path64) {
 	co.normals = append(co.normals, getUnitNormal(path[cnt-1], path[0]))
 }
 
-// вспомогательная функция
 func getUnitNormal(pt1, pt2 Point64) PointD {
 	dx := float64(pt2.X - pt1.X)
 	dy := float64(pt2.Y - pt1.Y)
@@ -370,13 +357,11 @@ func (co *ClipperOffset) offsetOpenPath(group *Group, path Path64) {
 		}
 	}
 
-	// offset left side forward
 	k := 0
 	for i := 1; i < highI; i++ {
 		co.offsetPoint(group, path, i, &k)
 	}
 
-	// reverse normals
 	for i := highI; i > 0; i-- {
 		co.normals[i] = PointD{-co.normals[i-1].X, -co.normals[i-1].Y}
 	}
@@ -384,7 +369,6 @@ func (co *ClipperOffset) offsetOpenPath(group *Group, path Path64) {
 		co.normals[0] = co.normals[highI]
 	}
 
-	// do end cap
 	if math.Abs(delta) < Tolerance {
 		co.pathOut = append(co.pathOut, path[highI])
 	} else {
@@ -398,7 +382,6 @@ func (co *ClipperOffset) offsetOpenPath(group *Group, path Path64) {
 		}
 	}
 
-	// offset left side back
 	k = highI
 	for i := highI - 1; i > 0; i-- {
 		co.offsetPoint(group, path, i, &k)
@@ -574,14 +557,9 @@ func (co *ClipperOffset) doSquare(path Path64, j, k int) {
 
 	absDelta := math.Abs(co.groupDelta)
 
-	// Исходная точка с учетом offset
 	ptQ := translatePoint(PointD{X: float64(path[j].X), Y: float64(path[j].Y)}, absDelta*vec.X, absDelta*vec.Y)
-
-	// Перпендикулярные вершины
 	pt1 := translatePoint(ptQ, co.groupDelta*vec.Y, -co.groupDelta*vec.X)
 	pt2 := translatePoint(ptQ, -co.groupDelta*vec.Y, co.groupDelta*vec.X)
-
-	// Точка вдоль одной стороны
 	pt3 := co.getPerpendicD(path[k], co.normals[k])
 
 	if j == k {
@@ -591,17 +569,12 @@ func (co *ClipperOffset) doSquare(path Path64, j, k int) {
 		}
 		pt := intersectPoint(pt1, pt2, pt3, pt4)
 
-		// Если есть Z-обработка — добавьте тут
-		// pt.Z = ptQ.Z
-
-		// Добавляем reflection точки
 		rp := reflectPoint(pt, ptQ)
 		co.pathOut = append(co.pathOut, rp.ToPoint64())
 		co.pathOut = append(co.pathOut, pt.ToPoint64())
 	} else {
 		pt4 := co.getPerpendicD(path[j], co.normals[k])
 		pt := intersectPoint(pt1, pt2, pt3, pt4)
-		// pt.Z = ptQ.Z, при необходимости
 
 		co.pathOut = append(co.pathOut, pt.ToPoint64())
 		rp := reflectPoint(pt, ptQ)
@@ -620,7 +593,7 @@ func intersectPoint(pt1a, pt1b, pt2a, pt2b PointD) PointD {
 		return PointD{X: pt1a.X, Y: m2*pt1a.X + b2}
 	}
 
-	if isAlmostZero(pt2a.X - pt2b.X) { // вторая вертикальная
+	if isAlmostZero(pt2a.X - pt2b.X) {
 		m1 := (pt1b.Y - pt1a.Y) / (pt1b.X - pt1a.X)
 		b1 := pt1a.Y - m1*pt1a.X
 		return PointD{X: pt2a.X, Y: m1*pt2a.X + b1}

@@ -300,13 +300,11 @@ func addPathsToVertexList(paths Paths64, polytype PathType, isOpen bool, minimaL
 }
 
 func addLocMin(v *Vertex, polytype PathType, isOpen bool, minimaList *[]*LocalMinima) {
-	// Проверка, чтобы не добавить один и тот же минимум повторно
 	if v.flags&LocalMin != None {
 		return
 	}
 	v.flags |= LocalMin
 
-	// Создаем новый элемент minima и добавляем в список
 	*minimaList = append(*minimaList, &LocalMinima{
 		Vertex:   v,
 		PolyType: polytype,
@@ -338,16 +336,16 @@ func disposeOutPt(op *OutPt) *OutPt {
 	if op == nil {
 		return nil
 	}
+
 	result := op.next
 	if op.next == op {
-		// одиночный узел, очищаем его поля
 		op.next = nil
 		op.prev = nil
 		return nil
 	}
+
 	op.prev.next = op.next
 	op.next.prev = op.prev
-	// очистить у удаляемого узла
 	op.next = nil
 	op.prev = nil
 	return result
@@ -356,13 +354,12 @@ func disposeOutPt(op *OutPt) *OutPt {
 func (c *clipperBase) fixSelfIntersects(outrec *OutRec) {
 	op2 := outrec.pts
 	if op2.prev == op2.next.next {
-		return // треугольник не может сам пересекаться
+		return
 	}
 
 	for {
 		if segsIntersect(op2.prev.pt, op2.pt, op2.next.pt, op2.next.next.pt, false) {
 			if segsIntersect(op2.prev.pt, op2.pt, op2.next.next.next.pt, op2.next.next.next.next.pt, false) {
-				// соседние пересечения - маленькое самопересечение
 				op2 = duplicateOp(op2, false)
 				op2.pt = op2.next.next.next.pt
 				op2 = op2.next
@@ -438,7 +435,6 @@ func topX(ae *Active, currentY int64) int64 {
 	if currentY == ae.bot.Y {
 		return ae.bot.X
 	}
-	// Используем math.Round для "nearbyint" с округлением к четному
 	return ae.bot.X + int64(math.Round(ae.dx*(float64(currentY)-float64(ae.bot.Y))))
 }
 
@@ -570,7 +566,6 @@ func swapOutRecs(ae1, ae2 *Active) {
 	or2 := ae2.outrec
 
 	if or1 != nil && or2 != nil && or1 == or2 {
-		// Обмен front и back у одного и того же OutRec
 		or1.frontEdge, or1.backEdge = or1.backEdge, or1.frontEdge
 		return
 	}
@@ -595,7 +590,6 @@ func swapOutRecs(ae1, ae2 *Active) {
 }
 
 func setOwner(outrec, newOwner *OutRec) {
-	// precondition: newOwner != nil (предполагается вызов с не nil)
 	for newOwner.owner != nil && newOwner.owner.pts == nil {
 		newOwner.owner = newOwner.owner.owner
 	}
@@ -772,14 +766,11 @@ func addOutPt(ae *Active, pt Point64) *OutPt {
 func swapOutrecs(ae1, ae2 *Active) {
 	or1 := ae1.outrec
 	or2 := ae2.outrec
-
-	// Если оба указывают на один OutRec
 	if or1 != nil && or2 != nil && or1 == or2 {
 		or1.frontEdge, or1.backEdge = or1.backEdge, or1.frontEdge
 		return
 	}
 
-	// Обновляем outrec у ae1
 	if or1 != nil {
 		if or1.frontEdge == ae1 {
 			or1.frontEdge = ae2
@@ -787,7 +778,7 @@ func swapOutrecs(ae1, ae2 *Active) {
 			or1.backEdge = ae2
 		}
 	}
-	// Обновляем outrec у ae2
+
 	if or2 != nil {
 		if or2.frontEdge == ae2 {
 			or2.frontEdge = ae1
@@ -796,7 +787,6 @@ func swapOutrecs(ae1, ae2 *Active) {
 		}
 	}
 
-	// Меняем по указателям
 	ae1.outrec = or2
 	ae2.outrec = or1
 }
@@ -806,7 +796,6 @@ func trimHorz(horzEdge *Active, preserveCollinear bool) {
 	pt := nextVertex(horzEdge).pt
 
 	for pt.Y == horzEdge.top.Y {
-		// всегда обрезать 180 градусных острых углов (у сглаженных путей)
 		if preserveCollinear && ((pt.X < horzEdge.top.X) != (horzEdge.bot.X < horzEdge.top.X)) {
 			break
 		}

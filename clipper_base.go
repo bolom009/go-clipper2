@@ -21,8 +21,6 @@ func NewPolyPathBase(parent *PolyPathBase) *PolyPathBase {
 
 func (p *PolyPathBase) AddChild(pth Path64) *PolyPathBase {
 	child := NewPolyPathBase(p)
-	// Возможно, создаёте свой класс, реализующий PolyPathBase
-	// или при необходимости возвращать или добавлять конкретный тип
 	p.children = append(p.children, child)
 	return child
 }
@@ -114,7 +112,6 @@ func (c *clipperBase) execute(clipType ClipType, fillRule FillRule,
 }
 
 func (c *clipperBase) buildPaths(solutionClosed, solutionOpen *Paths64) bool {
-	// Очищаем решения
 	*solutionClosed = (*solutionClosed)[:0]
 	*solutionOpen = (*solutionOpen)[:0]
 
@@ -140,7 +137,6 @@ func (c *clipperBase) buildPaths(solutionClosed, solutionOpen *Paths64) bool {
 			}
 		} else {
 			c.cleanCollinear(outrec)
-			// путя всегда ориентированы по положительной ориентации
 			if c.buildPath(outrec.pts, c.reverseSolution, false, &path) {
 				*solutionClosed = append(*solutionClosed, path)
 			}
@@ -196,7 +192,7 @@ func (c *clipperBase) buildPath(op *OutPt, reverse, isOpen bool, path *[]Point64
 		return false
 	}
 
-	*path = (*path)[:0] // очищаем
+	*path = (*path)[:0]
 
 	var lastPt Point64
 	var op2 *OutPt
@@ -287,7 +283,7 @@ func (c *clipperBase) executeInternal(ct ClipType, fillRule FillRule) {
 }
 
 func (c *clipperBase) doTopOfScanbeam(y int64) {
-	c.sel = nil // сбросим флаг горизонтальных линий
+	c.sel = nil
 	ae := c.actives
 	for ae != nil {
 		if ae.top.Y == y {
@@ -346,7 +342,6 @@ func (c *clipperBase) doMaxima(ae *Active) *Active {
 		c.split(maxPair, maxPair.top)
 	}
 
-	// обрабатываем все Edge между ae и maxPair
 	//cur := nextE
 	for nextE != maxPair {
 		c.intersectEdges(ae, nextE, ae.top)
@@ -387,26 +382,23 @@ func (c *clipperBase) doIntersections(topY int64) {
 }
 
 func (c *clipperBase) processIntersectList() {
-	// Сортируем по Y-началу пересечений (или по другой логике)
 	sort.Slice(c.intersectList, func(i, j int) bool {
 		a, b := c.intersectList[i], c.intersectList[j]
 		if a.pt.Y != b.pt.Y {
-			return a.pt.Y > b.pt.Y // по убыванию Y
+			return a.pt.Y > b.pt.Y
 		}
 		if a.pt.X == b.pt.X {
-			return false // равны
+			return false
 		}
-		return a.pt.X < b.pt.X // по возрастанию X
+		return a.pt.X < b.pt.X
 	})
 
 	for i := 0; i < len(c.intersectList); i++ {
-		// Обеспечиваем, чтобы пересечения шли между соседними в списке
 		if !edgesAdjacentInAEL(c.intersectList[i]) {
 			j := i + 1
 			for !edgesAdjacentInAEL(c.intersectList[j]) {
 				j++
 			}
-			// swap
 			c.intersectList[i], c.intersectList[j] = c.intersectList[j], c.intersectList[i]
 		}
 		node := c.intersectList[i]
@@ -426,7 +418,6 @@ func (c *clipperBase) buildIntersectList(topY int64) bool {
 		return false
 	}
 
-	// Производим пересчет текущего X и копирование в селект список
 	c.adjustCurrXAndCopyToSEL(topY)
 
 	left := c.sel
@@ -441,7 +432,6 @@ func (c *clipperBase) buildIntersectList(topY int64) bool {
 			left.jump = rEnd
 			for left != lEnd && right != rEnd {
 				if right.curX < left.curX {
-					//, добавьте вызов AddNewIntersectNode
 					tm := right.prevInSEL
 					for {
 						c.addNewIntersectNode(tm, right, topY)
@@ -516,7 +506,6 @@ func (c *clipperBase) addNewIntersectNode(ae1, ae2 *Active, topY int64) {
 		}
 	}
 
-	// Создаем узел пересечения
 	node := &IntersectNode{
 		pt:    ip,
 		edge1: ae1,
@@ -548,7 +537,6 @@ func (c *clipperBase) doSplitOp(outrec *OutRec, splitOp *OutPt) {
 	area2 := areaTriangle(ip, splitOp.pt, splitOp.next.pt)
 	absArea2 := math.Abs(area2)
 
-	// Проверяем совпадение точек пересечения с текущими вершинами
 	if pointsEqual(ip, prevOp.pt) || pointsEqual(ip, nextNextOp.pt) {
 		nextNextOp.prev = prevOp
 		prevOp.next = nextNextOp
@@ -605,7 +593,6 @@ func (c *clipperBase) adjustCurrXAndCopyToSEL(topY int64) {
 		ae.nextInSEL = ae.nextInAEL
 		ae.jump = ae.nextInSEL
 		ae.curX = topX(ae, topY)
-		// Не обновляем ae.Curr.Y
 		ae = ae.nextInAEL
 	}
 }
@@ -899,7 +886,6 @@ func (c *clipperBase) processHorzJoins() {
 		op1b := j.op1.next
 		op2b := j.op2.prev
 
-		// swap links
 		j.op1.next = j.op2
 		j.op2.prev = j.op1
 		op1b.prev = op2b
@@ -939,7 +925,7 @@ func (c *clipperBase) processHorzJoins() {
 			or2.pts = nil
 			//if c.usingPolyTree {
 			//	c.setOwner(or2, or1)
-			//	c.moveSplits(or2, or1) // реализуется отдельно
+			//	c.moveSplits(or2, or1)
 			//} else {
 			or2.owner = or1
 			//}
@@ -1824,7 +1810,6 @@ func (c *clipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 		return
 	}
 
-	// Обработка максимума, если оба hot
 	if isHotEdge(ae1) && isHotEdge(ae2) {
 		if (oldE1WindCount != 0 && oldE1WindCount != 1) ||
 			(oldE2WindCount != 0 && oldE2WindCount != 1) ||
@@ -1842,7 +1827,6 @@ func (c *clipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 		return
 	}
 
-	// Обработка hot edges
 	if isHotEdge(ae1) {
 		addOutPt(ae1, pt)
 		swapOutrecs(ae1, ae2)
@@ -1854,7 +1838,6 @@ func (c *clipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 		return
 	}
 
-	// Обработка не-hot edges
 	var e1Wc2, e2Wc2 int
 	switch c.fillRule {
 	case Positive:
