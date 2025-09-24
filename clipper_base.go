@@ -247,9 +247,8 @@ func (c *ClipperBase) executeInternal(ct ClipType, fillRule FillRule) {
 		return
 	}
 
-	c.succeeded = true
 	for c.succeeded {
-		fmt.Println("LOOP TIMES", y)
+		fmt.Println("+++ LOOP", y)
 
 		c.insertLocalMinimaIntoAEL(y)
 
@@ -263,27 +262,31 @@ func (c *ClipperBase) executeInternal(ct ClipType, fillRule FillRule) {
 		}
 
 		if len(c.horzSegList) > 0 {
+			fmt.Println("_horzSegList.Count", len(c.horzSegList))
 			c.convertHorzSegsToJoins()
 			c.horzSegList = nil
 		}
 
-		c.currentBotY = y // bottom of scanbeam
+		c.currentBotY = y
 
 		y, ok = c.popScanline()
 		if !ok {
+			fmt.Println("===> PopScanline END")
 			break
 		}
 
+		fmt.Println("===> Y =", y, c.sel)
+
 		c.doIntersections(y)
 		c.doTopOfScanbeam(y)
-
-		fmt.Println("===> Y", y)
 
 		for {
 			ae, ok := c.popHorz()
 			if !ok {
 				break
 			}
+
+			fmt.Println("HELLO??")
 
 			c.doHorizontal(ae)
 		}
@@ -295,10 +298,11 @@ func (c *ClipperBase) executeInternal(ct ClipType, fillRule FillRule) {
 }
 
 func (c *ClipperBase) doTopOfScanbeam(y int64) {
-	fmt.Println("doTopOfScanbeam", y)
+	fmt.Println("--------------DoTopOfScanbeam", y)
 	c.sel = nil // сбросим флаг горизонтальных линий
 	ae := c.actives
 	for ae != nil {
+		fmt.Println("+= doTopOfScanbeam DO ITERATION")
 		if ae.top.Y == y {
 			ae.curX = ae.top.X
 			if isMaximaActive(ae) {
@@ -345,7 +349,7 @@ func (c *ClipperBase) doMaxima(ae *Active) *Active {
 
 	maxPair := getMaximaPair(ae)
 	if maxPair == nil {
-		return nextE // идет горизонталь
+		return nextE
 	}
 
 	if isJoined(ae) {
@@ -356,11 +360,11 @@ func (c *ClipperBase) doMaxima(ae *Active) *Active {
 	}
 
 	// обрабатываем все Edge между ae и maxPair
-	cur := nextE
-	for cur != maxPair {
-		c.intersectEdges(ae, cur, ae.top)
-		c.swapPositionsInAEL(ae, cur)
-		cur = ae.nextInAEL
+	//cur := nextE
+	for nextE != maxPair {
+		c.intersectEdges(ae, nextE, ae.top)
+		c.swapPositionsInAEL(ae, nextE)
+		nextE = ae.nextInAEL
 	}
 
 	if isOpen(ae) {
@@ -388,8 +392,10 @@ func (c *ClipperBase) doMaxima(ae *Active) *Active {
 
 func (c *ClipperBase) doIntersections(topY int64) {
 	if !c.buildIntersectList(topY) {
+		fmt.Println("------------doIntersections DO ITERATION", topY)
 		return
 	}
+	fmt.Println("------------ DoIntersectionsPROCESS", topY)
 	c.processIntersectList()
 	c.disposeIntersectNodes()
 }
@@ -487,7 +493,6 @@ func (c *ClipperBase) buildIntersectList(topY int64) bool {
 func (c *ClipperBase) addNewIntersectNode(ae1, ae2 *Active, topY int64) {
 	var ip Point64
 	intersectPt, ok := getSegmentIntersectPt(ae1.bot, ae1.top, ae2.bot, ae2.top)
-
 	if !ok {
 		ip = Point64{X: ae1.curX, Y: topY}
 	} else {
@@ -619,23 +624,48 @@ func (c *ClipperBase) adjustCurrXAndCopyToSEL(topY int64) {
 	}
 }
 
-func horzSegSort(a, b *HorzSegment) bool {
-	return a.leftOp.pt.X < b.leftOp.pt.X
+func horzSegSort(hs1, hs2 *HorzSegment) int {
+	if hs1 == nil || hs2 == nil {
+		return 0
+	}
+
+	if hs1.rightOp == nil {
+		if hs2.rightOp == nil {
+			return 0
+		}
+
+		return 1
+	}
+
+	if hs2.rightOp == nil {
+		return -1
+	}
+
+	if hs1.leftOp.pt.X == hs2.leftOp.pt.X {
+		return 0
+	}
+
+	return -1
 }
 
 func (c *ClipperBase) convertHorzSegsToJoins() {
+	fmt.Println("+++++========> convertHorzSegsToJoins DO")
+
 	var k int
-	for i := range c.horzSegList {
-		if c.updateHorzSegment(c.horzSegList[i]) {
+	for _, hs := range c.horzSegList {
+		if c.updateHorzSegment(hs) {
 			k++
 		}
 	}
 	if k < 2 {
 		return
 	}
-	sort.Slice(c.horzSegList[:k], func(i, j int) bool {
-		return horzSegSort(c.horzSegList[i], c.horzSegList[j])
-	})
+
+	slices.SortFunc(c.horzSegList, horzSegSort)
+
+	//sort.Slice(c.horzSegList[:k], func(i, j int) bool {
+	//	return horzSegSort(c.horzSegList[i], c.horzSegList[j])
+	//})
 
 	for i := 0; i < k-1; i++ {
 		hs1 := c.horzSegList[i]
@@ -648,10 +678,12 @@ func (c *ClipperBase) convertHorzSegsToJoins() {
 			}
 			currY := hs1.leftOp.pt.Y
 			if hs1.leftToRight {
-				for hs1.leftOp.next != nil && hs1.leftOp.next.pt.Y == currY && hs1.leftOp.next.pt.X <= hs2.leftOp.pt.X {
+				for hs1.leftOp.next.pt.Y == currY &&
+					hs1.leftOp.next.pt.X <= hs2.leftOp.pt.X {
 					hs1.leftOp = hs1.leftOp.next
 				}
-				for hs2.leftOp.prev != nil && hs2.leftOp.prev.pt.Y == currY && hs2.leftOp.prev.pt.X <= hs1.leftOp.pt.X {
+				for hs2.leftOp.prev.pt.Y == currY &&
+					hs2.leftOp.prev.pt.X <= hs1.leftOp.pt.X {
 					hs2.leftOp = hs2.leftOp.prev
 				}
 				c.horzJoinList = append(c.horzJoinList, &HorzJoin{
@@ -684,27 +716,24 @@ func (c *ClipperBase) updateHorzSegment(hs *HorzSegment) bool {
 	opN := op
 
 	if outrecHasEdges {
-		// ищем крайние вершины с текущей Y
 		opA := outrec.pts
 		opZ := opA.next
 		for opP != opZ && opP.prev.pt.Y == currY {
 			opP = opP.prev
 		}
-		for opN != opA && opN.next != nil && opN.next.pt.Y == currY {
+		for opN != opA && opN.next.pt.Y == currY {
 			opN = opN.next
 		}
 	} else {
-		// ищем крайние вершины по окружности
-		for opP.prev != nil && opP.prev != opN && opP.prev.pt.Y == currY {
+		for opP.prev != opN && opP.prev.pt.Y == currY {
 			opP = opP.prev
 		}
-		for opN.next != nil && opN.next != opP && opN.next.pt.Y == currY {
+		for opN.next != opP && opN.next.pt.Y == currY {
 			opN = opN.next
 		}
 	}
 
 	result := setHorzSegHeadingForward(hs, opP, opN) && hs.leftOp.horz == nil
-
 	if result {
 		hs.leftOp.horz = hs
 	} else {
@@ -762,13 +791,12 @@ func (c *ClipperBase) doHorizontal(horz *Active) {
 
 			var pt Point64
 			if vertexMax != horz.vertexTop || isOpenEnd(horz) {
-				// Проверки на условие пересечения/прерванных линий
-				if (isLeftToRight && ae.curX > rightX) || (!isLeftToRight && ae.curX < leftX) {
+				if (isLeftToRight && ae.curX > rightX) ||
+					(!isLeftToRight && ae.curX < leftX) {
 					break
 				}
 				if ae.curX == horz.top.X && !isHorizontal(ae) {
 					pt = nextVertex(horz).pt
-					// дополнительные проверки
 					if isOpen(ae) && !isSamePolyType(ae, horz) && !isHotEdge(ae) {
 						if (isLeftToRight && topX(ae, pt.Y) > pt.X) ||
 							(!isLeftToRight && topX(ae, pt.Y) < pt.X) {
@@ -782,6 +810,8 @@ func (c *ClipperBase) doHorizontal(horz *Active) {
 			}
 
 			pt = Point64{X: ae.curX, Y: Y}
+
+			fmt.Println("== before isLeftToRight", ae.curX, Y, isLeftToRight)
 
 			if isLeftToRight {
 				fmt.Println("==========2222=====> isLeftToRight")
@@ -803,18 +833,17 @@ func (c *ClipperBase) doHorizontal(horz *Active) {
 			}
 		}
 
-		// Проверки по завершению для open/closed
 		if horzIsOpen && isOpenEnd(horz) {
 			if isHotEdge(horz) {
 				addOutPt(horz, horz.top)
 				if isFront(horz) {
-					if horz.outrec != nil {
-						horz.outrec.frontEdge = nil
-					}
+					//if horz.outrec != nil {
+					horz.outrec.frontEdge = nil
+					//}
 				} else {
-					if horz.outrec != nil {
-						horz.outrec.backEdge = nil
-					}
+					//if horz.outrec != nil {
+					horz.outrec.backEdge = nil
+					//}
 				}
 				horz.outrec = nil
 			}
@@ -861,6 +890,7 @@ func (c *ClipperBase) updateEdgeIntoAEL(ae *Active) {
 		c.split(ae, ae.bot)
 	}
 
+	fmt.Println("---updateEdgeIntoAELupdateEdgeIntoAEL", ae.top.Y, ae.bot.Y, isHorizontal(ae))
 	if isHorizontal(ae) {
 		if !isOpen(ae) {
 			trimHorz(ae, c.PreserveCollinear)
@@ -869,7 +899,7 @@ func (c *ClipperBase) updateEdgeIntoAEL(ae *Active) {
 	}
 	c.insertScanline(ae.top.Y)
 	c.checkJoinLeft(ae, ae.bot, false)
-	c.checkJoinRight(ae, ae.bot, true) // (#500)
+	c.checkJoinRight(ae, ae.bot, true)
 }
 
 func (c *ClipperBase) popHorz() (*Active, bool) {
@@ -940,18 +970,17 @@ func (c *ClipperBase) processHorzJoins() {
 
 func (c *ClipperBase) reset() {
 	if !c.isSortedMinimaList {
-		// c.minimaList.Sort(new LocMinSorter());
 		sort.Slice(c.minimaList, func(i, j int) bool {
 			return c.minimaList[i].Vertex.pt.Y > c.minimaList[j].Vertex.pt.Y
 		})
 		c.isSortedMinimaList = true
 	}
 
-	if cap(c.scanlineList) < len(c.minimaList) {
-		c.scanlineList = make([]int64, 0, len(c.minimaList))
-	} else {
-		c.scanlineList = c.scanlineList[:0]
-	}
+	//if cap(c.scanlineList) < len(c.minimaList) {
+	//	c.scanlineList = make([]int64, 0, len(c.minimaList))
+	//} else {
+	//	c.scanlineList = c.scanlineList[:0]
+	//}
 
 	for i := len(c.minimaList) - 1; i >= 0; i-- {
 		c.scanlineList = append(c.scanlineList, c.minimaList[i].Vertex.pt.Y)
@@ -996,31 +1025,62 @@ func (c *ClipperBase) deleteFromAEL(ae *Active) {
 	if next != nil {
 		next.prevInAEL = prev
 	}
-	// delete &ae;
 }
 
 func (c *ClipperBase) insertScanline(y int64) {
-	index, _ := slices.BinarySearch(c.scanlineList, y)
+	index := binarySearch(c.scanlineList, y)
 	if index >= 0 {
 		return
 	}
 
 	index = ^index
+	fmt.Println("======== BEFORE InsertScanline", c.scanlineList, index, y)
+	var err error
+	c.scanlineList, err = insertAtIndex(c.scanlineList, index, y)
+	if err != nil {
+		panic(err)
+	}
 	c.scanlineList[index] = y
+	fmt.Println("======== AFTER InsertScanline", c.scanlineList)
 }
 
 func (c *ClipperBase) popScanline() (int64, bool) {
 	cnt := len(c.scanlineList) - 1
+	fmt.Println("==> PopScanline BEFORE ITER", cnt, len(c.scanlineList))
 	if cnt < 0 {
 		return 0, false
 	}
 
 	y := c.scanlineList[cnt]
-	c.scanlineList = c.scanlineList[:cnt]
-	for len(c.scanlineList) > 0 && c.scanlineList[len(c.scanlineList)-1] == y {
-		c.scanlineList = c.scanlineList[:len(c.scanlineList)-1]
+	var err error
+	c.scanlineList, err = removeAtIndex(c.scanlineList, cnt)
+	if err != nil {
+		panic(err)
 	}
+	//c.scanlineList = c.scanlineList[:cnt]
+	cnt--
+	for cnt >= 0 && c.scanlineList[cnt] == y {
+		c.scanlineList, err = removeAtIndex(c.scanlineList, cnt)
+		if err != nil {
+			panic(err)
+		}
+		//c.scanlineList = c.scanlineList[:cnt]
+		cnt--
+	}
+
+	fmt.Println("==> PopScanline AFTER ITER", cnt, len(c.scanlineList))
+
 	return y, true
+}
+
+func removeAtIndex[T any](slice []T, index int) ([]T, error) {
+	if index < 0 || index >= len(slice) {
+		return slice, fmt.Errorf("index out of bounds") // Or panic, depending on desired behavior
+	}
+
+	// Efficiently remove element by shifting elements
+	slice = append(slice[:index], slice[index+1:]...)
+	return slice, nil
 }
 
 func (c *ClipperBase) hasLocMinAtY(y int64) bool {
@@ -1106,7 +1166,7 @@ func (c *ClipperBase) isContributingClosed(ae *Active) bool {
 		}
 		return !result
 	case Xor:
-		return true // XOR всегда contributing, кроме открытых путей
+		return true
 	default:
 		return false
 	}
@@ -1142,14 +1202,13 @@ func (c *ClipperBase) setWindCountForClosedPathEdge(ae *Active) {
 	ae2 := ae.prevInAEL
 	pt := getPolyType(ae)
 
-	// ищем ближайшую закрытую границу с таким же типом полигона, идущую влево
 	for ae2 != nil && (getPolyType(ae2) != pt || isOpen(ae2)) {
 		ae2 = ae2.prevInAEL
 	}
 
 	if ae2 == nil {
 		ae.windCount = ae.windDx
-		ae2 = c.actives // или что у вас за активы по умолчанию
+		ae2 = c.actives
 	} else if c.fillRule == EvenOdd {
 		ae.windCount = ae.windDx
 		ae.windCount2 = ae2.windCount2
@@ -1180,16 +1239,19 @@ func (c *ClipperBase) setWindCountForClosedPathEdge(ae *Active) {
 		ae2 = ae2.nextInAEL
 	}
 
-	// обновляем WindCount2
 	if c.fillRule == EvenOdd {
-		for ae2 != nil && ae2 != ae {
+		for ae2 != ae {
 			if getPolyType(ae2) != pt && !isOpen(ae2) {
-				ae.windCount2 = 1 - ae.windCount2
+				if ae.windCount2 == 0 {
+					ae.windCount2 = 1
+				} else {
+					ae.windCount2 = 0
+				}
 			}
 			ae2 = ae2.nextInAEL
 		}
 	} else {
-		for ae2 != nil && ae2 != ae {
+		for ae2 != ae {
 			if getPolyType(ae2) != pt && !isOpen(ae2) {
 				ae.windCount2 += ae2.windDx
 			}
@@ -1200,11 +1262,10 @@ func (c *ClipperBase) setWindCountForClosedPathEdge(ae *Active) {
 
 func (c *ClipperBase) setWindCountForOpenPathEdge(ae *Active) {
 	ae2 := c.actives
-
 	if c.fillRule == EvenOdd {
 		cnt1 := 0
 		cnt2 := 0
-		for ae2 != nil && ae2 != ae {
+		for ae2 != ae {
 			if getPolyType(ae2) == Clip {
 				cnt2++
 			} else if !isOpen(ae2) {
@@ -1223,7 +1284,7 @@ func (c *ClipperBase) setWindCountForOpenPathEdge(ae *Active) {
 			ae.windCount2 = 0
 		}
 	} else {
-		for ae2 != nil && ae2 != ae {
+		for ae2 != ae {
 			if getPolyType(ae2) == Clip {
 				ae.windCount2 += ae2.windDx
 			} else if !isOpen(ae2) {
@@ -1258,9 +1319,9 @@ func (c *ClipperBase) insertLeftEdge(ae *Active) {
 	}
 	// don't separate joined edges
 	if ae2.joinWith == JoinRight {
-		if ae2.nextInAEL != nil {
-			ae2 = ae2.nextInAEL
-		}
+		//if ae2.nextInAEL != nil {
+		ae2 = ae2.nextInAEL
+		//}
 	}
 
 	ae.nextInAEL = ae2.nextInAEL
@@ -1366,6 +1427,7 @@ func (c *ClipperBase) insertLocalMinimaIntoAEL(botY int64) {
 			if isHorizontal(rightBound) {
 				c.pushHorz(rightBound)
 			} else {
+				fmt.Println("--->>insertLocalMinimaIntoAEL111", rightBound.top.Y)
 				c.checkJoinRight(rightBound, rightBound.bot, false)
 				c.insertScanline(rightBound.top.Y)
 			}
@@ -1376,18 +1438,18 @@ func (c *ClipperBase) insertLocalMinimaIntoAEL(botY int64) {
 		if isHorizontal(leftBound) {
 			c.pushHorz(leftBound)
 		} else {
+			fmt.Println("--->>insertLocalMinimaIntoAEL222", rightBound.top.Y)
 			c.insertScanline(leftBound.top.Y)
 		}
 	}
 }
 
 func (c *ClipperBase) swapPositionsInAEL(ae1, ae2 *Active) {
-	// Предусловие: ae1 должен быть слева от ae2
-
 	next := ae2.nextInAEL
 	if next != nil {
 		next.prevInAEL = ae1
 	}
+
 	prev := ae1.prevInAEL
 	if prev != nil {
 		prev.nextInAEL = ae2
@@ -1399,7 +1461,6 @@ func (c *ClipperBase) swapPositionsInAEL(ae1, ae2 *Active) {
 	ae1.prevInAEL = ae2
 	ae1.nextInAEL = next
 
-	// Обновляем голову списка, если ae2 был в начале
 	if ae2.prevInAEL == nil {
 		c.actives = ae2
 	}
@@ -1422,22 +1483,20 @@ func (c *ClipperBase) checkJoinRight(e *Active, pt Point64, checkCurrX bool) {
 	}
 
 	if checkCurrX {
-		if PerpendicDistFromLineSqr64(pt, next.bot, next.top) > 0.25 {
+		if perpendicDistFromLineSqr64(pt, next.bot, next.top) > 0.25 {
 			return
 		}
-	} else {
-		if e.curX != next.curX {
-			return
-		}
+	} else if e.curX != next.curX {
+		return
 	}
 
 	if !isCollinear(e.top, pt, next.top) {
 		return
 	}
 
-	if e.outrec != nil && next.outrec != nil && e.outrec.idx == next.outrec.idx {
+	if e.outrec.idx == next.outrec.idx {
 		c.addLocalMaxPoly(e, next, pt)
-	} else if e.outrec != nil && next.outrec != nil && e.outrec.idx < next.outrec.idx {
+	} else if e.outrec.idx < next.outrec.idx {
 		c.joinOutrecPaths(e, next)
 	} else {
 		c.joinOutrecPaths(next, e)
@@ -1461,7 +1520,7 @@ func (c *ClipperBase) checkJoinLeft(e *Active, pt Point64, checkCurrX bool) {
 	}
 
 	if checkCurrX {
-		if PerpendicDistFromLineSqr64(pt, prev.bot, prev.top) > 0.25 {
+		if perpendicDistFromLineSqr64(pt, prev.bot, prev.top) > 0.25 {
 			return
 		}
 	} else if e.curX != prev.curX {
@@ -1549,11 +1608,12 @@ func (c *ClipperBase) addLocalMaxPoly(ae1, ae2 *Active, pt Point64) *OutPt {
 	// If both are front (same side), try to swap front/back for open ends,
 	// otherwise failure (in C# sets _succeeded=false and returns null).
 	if isFront(ae1) == isFront(ae2) {
-		if isOpenEnd(ae1) && ae1.outrec != nil {
+		if isOpenEnd(ae1) {
 			swapFrontBackSides(ae1.outrec)
-		} else if isOpenEnd(ae2) && ae2.outrec != nil {
+		} else if isOpenEnd(ae2) {
 			swapFrontBackSides(ae2.outrec)
 		} else {
+			fmt.Println("END CYCLE WHY?")
 			c.succeeded = false
 			return nil
 		}
@@ -1599,15 +1659,15 @@ func (c *ClipperBase) addLocalMaxPoly(ae1, ae2 *Active, pt Point64) *OutPt {
 func (c *ClipperBase) split(e *Active, currPt Point64) {
 	if e.joinWith == JoinRight {
 		e.joinWith = JoinNone
-		if e.nextInAEL != nil {
-			e.nextInAEL.joinWith = JoinNone
-		}
+		//if e.nextInAEL != nil {
+		e.nextInAEL.joinWith = JoinNone
+		//}
 		c.addLocalMinPoly(e, e.nextInAEL, currPt, true)
 	} else {
 		e.joinWith = JoinNone
-		if e.prevInAEL != nil {
-			e.prevInAEL.joinWith = JoinNone
-		}
+		//if e.prevInAEL != nil {
+		e.prevInAEL.joinWith = JoinNone
+		//}
 		c.addLocalMinPoly(e.prevInAEL, e, currPt, true)
 	}
 }
@@ -1650,8 +1710,6 @@ func (c *ClipperBase) joinOutrecPaths(ae1, ae2 *Active) {
 	ae2.outrec.frontEdge = nil
 	ae2.outrec.backEdge = nil
 	ae2.outrec.pts = nil
-
-	// transfer ownership
 	setOwner(ae2.outrec, ae1.outrec)
 
 	if isOpenEnd(ae1) {
@@ -1667,8 +1725,6 @@ func (c *ClipperBase) joinOutrecPaths(ae1, ae2 *Active) {
 func (c *ClipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 	fmt.Println("=====> IntersectEdges")
 	var resultOp *OutPt
-
-	// Обработка открытых путей
 	if c.hasOpenPaths && (isOpen(ae1) || isOpen(ae2)) {
 		if isOpen(ae1) && isOpen(ae2) {
 			return
@@ -1705,30 +1761,21 @@ func (c *ClipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 		if isHotEdge(ae1) {
 			resultOp = addOutPt(ae1, pt)
 			if isFront(ae1) {
-				if ae1.outrec.frontEdge != nil {
-					ae1.outrec.frontEdge = nil
-				}
+				//if ae1.outrec.frontEdge != nil {
+				ae1.outrec.frontEdge = nil
+				//}
 			} else {
-				if ae1.outrec.backEdge != nil {
-					ae1.outrec.backEdge = nil
-				}
+				//if ae1.outrec.backEdge != nil {
+				ae1.outrec.backEdge = nil
+				//}
 			}
 			ae1.outrec = nil
-
-			//if ae1.outrec != nil {
-			//	if isFront(ae1) {
-			//		ae1.outrec.frontEdge = nil
-			//	} else {
-			//		ae1.outrec.backEdge = nil
-			//	}
-			//	ae1.outrec = nil
-			//}
-		} else if pt == ae1.localMin.Vertex.pt && !isVertexOpenEnd(ae1.localMin.Vertex) {
-			// ищем другую сторону
-			if ae3 := findEdgeWithMatchingLocMin(ae1); ae3 != nil && isHotEdge(ae3) {
+		} else if pt == ae1.localMin.Vertex.pt &&
+			!isVertexOpenEnd(ae1.localMin.Vertex) {
+			ae3 := findEdgeWithMatchingLocMin(ae1)
+			if ae3 != nil && isHotEdge(ae3) {
 				ae1.outrec = ae3.outrec
 				if ae1.windDx > 0 {
-					//if isFront(ae1) {
 					setSides(ae3.outrec, ae1, ae3)
 				} else {
 					setSides(ae3.outrec, ae3, ae1)
@@ -1742,7 +1789,6 @@ func (c *ClipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 		return
 	}
 
-	// Обработка закрытых путей
 	if isJoined(ae1) {
 		c.split(ae1, pt)
 	}
@@ -1752,9 +1798,9 @@ func (c *ClipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 
 	if ae1.localMin.PolyType == ae2.localMin.PolyType {
 		if c.fillRule == EvenOdd {
-			oldWindCount := ae1.windCount
+			oldE1WindCount := ae1.windCount
 			ae1.windCount = ae2.windCount
-			ae2.windCount = oldWindCount
+			ae2.windCount = oldE1WindCount
 		} else {
 			if ae1.windCount+ae2.windDx == 0 {
 				ae1.windCount = -ae1.windCount
@@ -1804,14 +1850,17 @@ func (c *ClipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 	e1WindCountIs0or1 := oldE1WindCount == 0 || oldE1WindCount == 1
 	e2WindCountIs0or1 := oldE2WindCount == 0 || oldE2WindCount == 1
 
-	if (!isHotEdge(ae1) && !e1WindCountIs0or1) || (!isHotEdge(ae2) && !e2WindCountIs0or1) {
+	if (!isHotEdge(ae1) && !e1WindCountIs0or1) ||
+		(!isHotEdge(ae2) && !e2WindCountIs0or1) {
 		return
 	}
 
 	// Обработка максимума, если оба hot
 	if isHotEdge(ae1) && isHotEdge(ae2) {
-		if (oldE1WindCount != 0 && oldE1WindCount != 1) || (oldE2WindCount != 0 && oldE2WindCount != 1) ||
-			(getPolyType(ae1) != getPolyType(ae2) && c.clipType != Xor) {
+		fmt.Println("===============> IsHotEdge1 IsHotEdge2")
+		if (oldE1WindCount != 0 && oldE1WindCount != 1) ||
+			(oldE2WindCount != 0 && oldE2WindCount != 1) ||
+			(ae1.localMin.PolyType != ae2.localMin.PolyType && c.clipType != Xor) {
 			c.addLocalMaxPoly(ae1, ae2, pt)
 		} else if isFront(ae1) || (ae1.outrec == ae2.outrec) {
 			c.addLocalMaxPoly(ae1, ae2, pt)

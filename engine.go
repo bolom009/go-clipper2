@@ -301,7 +301,7 @@ func addPathsToVertexList(paths Paths64, polytype PathType, isOpen bool, minimaL
 
 func addLocMin(v *Vertex, polytype PathType, isOpen bool, minimaList *[]*LocalMinima) {
 	// Проверка, чтобы не добавить один и тот же минимум повторно
-	if v.flags&LocalMin != 0 {
+	if v.flags&LocalMin != None {
 		return
 	}
 	v.flags |= LocalMin
@@ -486,7 +486,7 @@ func prevPrevVertex(ae *Active) *Vertex {
 }
 
 func isMaxima(vertex *Vertex) bool {
-	return (vertex.flags & LocalMax) != 0
+	return (vertex.flags & LocalMax) != None
 }
 
 func isMaximaActive(ae *Active) bool {
@@ -507,15 +507,13 @@ func getMaximaPair(ae *Active) *Active {
 func getCurrYMaximaVertexOpen(ae *Active) *Vertex {
 	result := ae.vertexTop
 	if ae.windDx > 0 {
-		// идем вперед, пока вершина имеет такую же Y и не является максимумом или концом
-		for result.next != nil && result.next.pt.Y == result.pt.Y &&
-			(result.flags&(OpenEnd|LocalMax)) == 0 {
+		for result.next.pt.Y == result.pt.Y &&
+			(result.flags&(OpenEnd|LocalMax)) == None {
 			result = result.next
 		}
 	} else {
-		// идем назад
-		for result.prev != nil && result.prev.pt.Y == result.pt.Y &&
-			(result.flags&(OpenEnd|LocalMax)) == 0 {
+		for result.prev.pt.Y == result.pt.Y &&
+			(result.flags&(OpenEnd|LocalMax)) == None {
 			result = result.prev
 		}
 	}
@@ -528,11 +526,11 @@ func getCurrYMaximaVertexOpen(ae *Active) *Vertex {
 func getCurrYMaximaVertex(ae *Active) *Vertex {
 	result := ae.vertexTop
 	if ae.windDx > 0 {
-		for result.next != nil && result.next.pt.Y == result.pt.Y {
+		for result.next.pt.Y == result.pt.Y {
 			result = result.next
 		}
 	} else {
-		for result.prev != nil && result.prev.pt.Y == result.pt.Y {
+		for result.prev.pt.Y == result.pt.Y {
 			result = result.prev
 		}
 	}
@@ -544,7 +542,6 @@ func getCurrYMaximaVertex(ae *Active) *Vertex {
 
 func resetHorzDirection(horz *Active, vertexMax *Vertex) (leftX, rightX int64, leftToRight bool) {
 	if horz.bot.X == horz.top.X {
-		// горизонтальный сегмент не двигается в X
 		leftX = horz.curX
 		rightX = horz.curX
 		ae := horz.nextInAEL
@@ -600,7 +597,7 @@ func swapOutRecs(ae1, ae2 *Active) {
 func setOwner(outrec, newOwner *OutRec) {
 	// precondition: newOwner != nil (предполагается вызов с не nil)
 	for newOwner.owner != nil && newOwner.owner.pts == nil {
-		newOwner = newOwner.owner
+		newOwner.owner = newOwner.owner.owner
 	}
 
 	tmp := newOwner
@@ -718,7 +715,8 @@ func isValidAelOrder(resident, newcomer *Active) bool {
 		return true
 	}
 	// compare turning direction of the alternate bound
-	return (CrossProduct(prevPrevVertex(resident).pt, newcomer.bot, prevPrevVertex(newcomer).pt) > 0) == newcomerIsLeft
+	return (CrossProduct(prevPrevVertex(resident).pt, newcomer.bot,
+		prevPrevVertex(newcomer).pt) > 0) == newcomerIsLeft
 }
 
 func insertRightEdge(ae, ae2 *Active) {
@@ -860,7 +858,7 @@ func insertBeforeInSEL(ae1, ae2 *Active) {
 func findEdgeWithMatchingLocMin(e *Active) *Active {
 	result := e.nextInAEL
 	for result != nil {
-		if result.localMin == e.localMin {
+		if &result.localMin == &e.localMin {
 			return result
 		}
 		if !isHorizontal(result) && (e.bot != result.bot) {
@@ -872,7 +870,7 @@ func findEdgeWithMatchingLocMin(e *Active) *Active {
 
 	result = e.prevInAEL
 	for result != nil {
-		if result.localMin == e.localMin {
+		if &result.localMin == &e.localMin {
 			return result
 		}
 		if !isHorizontal(result) && (e.bot != result.bot) {
@@ -884,24 +882,20 @@ func findEdgeWithMatchingLocMin(e *Active) *Active {
 }
 
 func duplicateOp(op *OutPt, insertAfter bool) *OutPt {
-	result := &OutPt{
-		pt:     op.pt,
-		outrec: op.outrec,
-	}
-
+	result := NewOutPt(op.pt, op.outrec)
 	if insertAfter {
 		result.next = op.next
+		//if op.next != nil {
+		op.next.prev = result
+		//}
 		result.prev = op
-		if op.next != nil {
-			op.next.prev = result
-		}
 		op.next = result
 	} else {
 		result.prev = op.prev
+		//if op.prev != nil {
+		op.prev.next = result
+		//}
 		result.next = op
-		if op.prev != nil {
-			op.prev.next = result
-		}
 		op.prev = result
 	}
 	return result

@@ -14,5 +14,9 @@ func TestClipper64(t *testing.T) {
 	}
 
 	union := UnionWithClipPaths64(subject, clip, NonZero)
+	// should be {{100,50} , {150,50} , {150,150} , {50,150} , {50,100} , {0,100} , {0,0} , {100,0}}
+	fmt.Println("=======> EXPECT", Paths64{
+		{{100, 50}, {150, 50}, {150, 150}, {50, 150}, {50, 100}, {0, 100}, {0, 0}, {100, 0}},
+	})
 	fmt.Println("=======> RESULT", union)
 }

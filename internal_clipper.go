@@ -19,7 +19,7 @@ var precisionRangeError = errors.New("Error: Precision is out of range.")
 
 // CrossProduct for three Point64 (pt1->pt2 x pt2->pt3)
 func CrossProduct(pt1, pt2, pt3 Point64) float64 {
-	return float64(pt2.X-pt1.X)*float64(pt3.Y-pt2.Y) - float64(pt2.Y-pt1.Y)*float64(pt3.X-pt2.X)
+	return float64(pt2.X - pt1.X*pt3.Y - pt2.Y - pt2.Y - pt1.Y*pt3.X - pt2.X)
 }
 
 // If you use Z, implement SetZ accordingly
@@ -76,7 +76,8 @@ func productsAreEqual(a, b, c, d int64) bool {
 	signAB := TriSign(a) * TriSign(b)
 	signCD := TriSign(c) * TriSign(d)
 
-	return mulAB.Lo64 == mulCD.Lo64 && mulAB.Hi64 == mulCD.Hi64 && signAB == signCD
+	return mulAB.Lo64 == mulCD.Lo64 &&
+		mulAB.Hi64 == mulCD.Hi64 && signAB == signCD
 }
 
 func isCollinear(pt1, sharedPt, pt2 Point64) bool {
@@ -114,24 +115,24 @@ func CheckCastInt64(val float64) int64 {
 // getSegmentIntersectPt computes intersection point ip of two segments ln1 (ln1a->ln1b) and ln2.
 // Returns (true, ip) if lines intersect (including endpoints); if parallel, returns (false, zeroPt)
 func getSegmentIntersectPt(ln1a, ln1b, ln2a, ln2b Point64) (Point64, bool) {
-	dy1 := float64(ln1b.Y - ln1a.Y)
-	dx1 := float64(ln1b.X - ln1a.X)
-	dy2 := float64(ln2b.Y - ln2a.Y)
-	dx2 := float64(ln2b.X - ln2a.X)
+	dy1 := ln1b.Y - ln1a.Y
+	dx1 := ln1b.X - ln1a.X
+	dy2 := ln2b.Y - ln2a.Y
+	dx2 := ln2b.X - ln2a.X
 	det := dy1*dx2 - dy2*dx1
 	var ip Point64
-	if det == 0.0 {
+	if det == 0 {
 		return ip, false
 	}
-	t := ((float64(ln1a.X-ln2a.X) * dy2) - (float64(ln1a.Y-ln2a.Y) * dx2)) / det
-	if t <= 0.0 {
+
+	t := float64(((ln1a.X-ln2a.X)*dy2)-((ln1a.Y-ln2a.Y)*dx2)) / float64(det)
+	if t <= 0 {
 		ip = ln1a
-	} else if t >= 1.0 {
+	} else if t >= 1 {
 		ip = ln1b
 	} else {
-		ip.X = ln1a.X + int64(t*dx1)
-		ip.Y = ln1a.Y + int64(t*dy1)
-		// TODO: handle Z if needed
+		ip.X = ln1a.X + int64(t*float64(dx1))
+		ip.Y = ln1a.Y + int64(t*float64(dy1))
 	}
 	return ip, true
 }

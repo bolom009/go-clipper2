@@ -318,18 +318,17 @@ func PerpendicDistFromLineSqrD(pt, line1, line2 PointD) float64 {
 	return Sqr(a*d-c*b) / (c*c + d*d)
 }
 
-func PerpendicDistFromLineSqr64(pt, line1, line2 Point64) float64 {
-	a := float64(pt.X) - float64(line1.X)
-	b := float64(pt.Y) - float64(line1.Y)
-	c := float64(line2.X) - float64(line1.X)
-	d := float64(line2.Y) - float64(line1.Y)
+func perpendicDistFromLineSqr64(pt, line1, line2 Point64) float64 {
+	a := pt.X - line1.X
+	b := pt.Y - line1.Y
+	c := line2.X - line1.X
+	d := line2.Y - line1.Y
 
-	// Если линия точка
 	if c == 0 && d == 0 {
 		return 0
 	}
 
-	return Sqr(a*d-c*b) / (c*c + d*d)
+	return float64(Sqr(a*d-c*b)) / float64(c*c+d*d)
 }
 
 func Ellipse64(center Point64, radiusX, radiusY float64, steps int) Path64 {
