@@ -68,19 +68,19 @@ func main() {
 
 ## 📊 Implementation Status
 
-| Feature               | Pure Go  | Status     |
-| --------------------- |----------|------------|
-| Boolean Operations    | ✅        | Complete   |
-| Union64               | ✅        | Complete   |
-| Intersect64           | ✅        | Complete   |
-| Difference64          | ✅        | Complete   |
-| Xor64                 | ✅        | Complete   |
-| Polygon Offsetting    | 🚧        | Planned    |
-| Rectangle Clipping    | 🚧        | Planned    |
-| Area Calculation      | 🚧        | Planned    |
-| Orientation Detection | 🚧        | Planned    |
-| Path Reversal         | 🚧        | Planned    |
-| Minkowski Operations  | ❌        | Future     |
+| Feature                   | Pure Go  | Status     |
+|---------------------------|----------|------------|
+| Boolean Operations {64,D} | ✅        | Complete   |
+| Union64, UnionD           | ✅        | Complete   |
+| Intersect64, IntersectD   | ✅        | Complete   |
+| Difference64, DifferenceD | ✅        | Complete   |
+| Xor64, XorD               | ✅        | Complete   |
+| Polygon Offsetting        | 🚧        | Planned    |
+| Rectangle Clipping        | 🚧        | Planned    |
+| Area Calculation          | 🚧        | Planned    |
+| Orientation Detection     | 🚧        | Planned    |
+| Path Reversal             | 🚧        | Planned    |
+| Minkowski Operations      | ❌        | Future     |
 
 **Legend**: ✅ Implemented, ❌ Not implemented, 🚧 In progress
 
