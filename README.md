@@ -54,12 +54,13 @@ func main() {
 	unionResults = goclipper2.BooleanOpPaths64(goclipper2.Union, subject, clip, goclipper2.NonZero)
     fmt.Printf("Union area: %v\n", unionResults)
 	
-	/* All methods
+	/*
 	    goclipper2.UnionPaths64(...)
 	    goclipper2.UnionWithClipPaths64(...)
 	    goclipper2.IntersectWithClipPaths64(...)
 	    goclipper2.DifferenceWithClipPaths64(...)
 	    goclipper2.XorWithClipPaths64(...)
+	    goclipper2.UnionWithClipPathsD(...)
 	    ...
 	*/
 }
@@ -67,19 +68,19 @@ func main() {
 
 ## 📊 Implementation Status
 
-| Feature               | Pure Go  | Status         |
-| --------------------- |----------|----------------|
-| Boolean Operations    | ✅        | In Development |
-| Union64               | ✅        | Complete       |
-| Intersect64           | ✅        | Complete       |
-| Difference64          | ✅        | Complete       |
-| Xor64                 | ✅        | Complete       |
-| Polygon Offsetting    | 🚧        | Planned        |
-| Rectangle Clipping    | 🚧        | Planned        |
-| Area Calculation      | 🚧        | Planned        |
-| Orientation Detection | 🚧        | Planned        |
-| Path Reversal         | 🚧        | Planned        |
-| Minkowski Operations  | ❌        | Future         |
+| Feature               | Pure Go  | Status     |
+| --------------------- |----------|------------|
+| Boolean Operations    | ✅        | Complete   |
+| Union64               | ✅        | Complete   |
+| Intersect64           | ✅        | Complete   |
+| Difference64          | ✅        | Complete   |
+| Xor64                 | ✅        | Complete   |
+| Polygon Offsetting    | 🚧        | Planned    |
+| Rectangle Clipping    | 🚧        | Planned    |
+| Area Calculation      | 🚧        | Planned    |
+| Orientation Detection | 🚧        | Planned    |
+| Path Reversal         | 🚧        | Planned    |
+| Minkowski Operations  | ❌        | Future     |
 
 **Legend**: ✅ Implemented, ❌ Not implemented, 🚧 In progress
 
