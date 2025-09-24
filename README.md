@@ -17,7 +17,7 @@ errors common in computational geometry.
 
 - Go 1.23 or later
 
-### Instalation
+### Installation
 
 ```
 go get github.com/bolom009/go-clipper2
