@@ -71,7 +71,7 @@ func BooleanOpPathsD(clipType ClipType, subject PathsD, clip PathsD, fillRule Fi
 		c.AddPaths(clip, Clip, false)
 	}
 
-	c.Execute(clipType, fillRule, solution)
+	c.Execute(clipType, fillRule, &solution)
 	return solution
 }
 
