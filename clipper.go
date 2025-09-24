@@ -26,18 +26,6 @@ func UnionPathsD(subject PathsD, fillRule FillRule, precision ...int) PathsD {
 	return BooleanOpPathsD(Union, subject, nil, fillRule, precision...)
 }
 
-func IntersectPathsD(subject PathsD, fillRule FillRule, precision ...int) PathsD {
-	return BooleanOpPathsD(Intersection, subject, nil, fillRule, precision...)
-}
-
-func DifferencePathsD(subject PathsD, fillRule FillRule, precision ...int) PathsD {
-	return BooleanOpPathsD(Difference, subject, nil, fillRule, precision...)
-}
-
-func XorPathsD(subject PathsD, fillRule FillRule, precision ...int) PathsD {
-	return BooleanOpPathsD(Xor, subject, nil, fillRule, precision...)
-}
-
 func UnionWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
 	return BooleanOpPathsD(Union, subject, clip, fillRule, precision...)
 }
@@ -166,11 +154,11 @@ func areaPathsD(paths PathsD) float64 {
 	return a
 }
 
-func isPositive64(poly Path64) bool {
+func IsPositive64(poly Path64) bool {
 	return area64(poly) >= 0
 }
 
-func isPositiveD(poly PathD) bool {
+func IsPositiveD(poly PathD) bool {
 	return areaD(poly) >= 0
 }
 
@@ -310,15 +298,11 @@ func GetBounds64(path Path64) Rect64 {
 	return result
 }
 
-func Sqr[T Numeric](val T) T {
-	return val * val
+func pointsNearEqual(pt1, pt2 PointD, distanceSqrd float64) bool {
+	return sqr(pt1.X-pt2.X)+sqr(pt1.Y-pt2.Y) < distanceSqrd
 }
 
-func PointsNearEqual(pt1, pt2 PointD, distanceSqrd float64) bool {
-	return Sqr(pt1.X-pt2.X)+Sqr(pt1.Y-pt2.Y) < distanceSqrd
-}
-
-func PerpendicDistFromLineSqrD(pt, line1, line2 PointD) float64 {
+func perpendicDistFromLineSqrD(pt, line1, line2 PointD) float64 {
 	a := pt.X - line1.X
 	b := pt.Y - line1.Y
 	c := line2.X - line1.X
@@ -328,7 +312,7 @@ func PerpendicDistFromLineSqrD(pt, line1, line2 PointD) float64 {
 		return 0
 	}
 
-	return Sqr(a*d-c*b) / (c*c + d*d)
+	return sqr(a*d-c*b) / (c*c + d*d)
 }
 
 func perpendicDistFromLineSqr64(pt, line1, line2 Point64) float64 {
@@ -341,7 +325,7 @@ func perpendicDistFromLineSqr64(pt, line1, line2 Point64) float64 {
 		return 0
 	}
 
-	return float64(Sqr(a*d-c*b)) / float64(c*c+d*d)
+	return float64(sqr(a*d-c*b)) / float64(c*c+d*d)
 }
 
 func Ellipse64(center Point64, radiusX, radiusY float64, steps int) Path64 {

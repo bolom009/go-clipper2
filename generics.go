@@ -3,18 +3,18 @@ package go_clipper2
 import "fmt"
 
 type Numeric interface {
-	float64 | int64
+	int | int64 | int32 | float64 | float32
 }
 
-type IntNumeric interface {
-	int | int64 | int32
-}
-
-func absInt[T IntNumeric](a T) T {
+func absInt[T Numeric](a T) T {
 	if a < 0 {
 		return -a
 	}
 	return a
+}
+
+func sqr[T Numeric](val T) T {
+	return val * val
 }
 
 func binarySearch(arr []int64, target int64) int {
