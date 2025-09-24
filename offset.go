@@ -77,7 +77,7 @@ func (g *Group) GetLowestPathInfo() (int, bool) {
 				continue
 			}
 			if a == math.MaxFloat64 {
-				a = Area64(path)
+				a = area64(path)
 				if a == 0 {
 					// invalid path, пропускаем
 					break
@@ -208,10 +208,10 @@ func (co *ClipperOffset) executeInternal(delta float64) {
 		fillRule = Positive
 	}
 
-	var c *Clipper64
-	c = &Clipper64{}
-	c.PreserveCollinear = co.PreserveCollinear
-	c.ReverseSolution = co.ReverseSolution != pathsReversed
+	var c *clipper64
+	c = &clipper64{}
+	c.preserveCollinear = co.PreserveCollinear
+	c.reverseSolution = co.ReverseSolution != pathsReversed
 
 	c.addSubject(co.solution)
 
@@ -610,8 +610,8 @@ func (co *ClipperOffset) doSquare(path Path64, j, k int) {
 }
 
 func intersectPoint(pt1a, pt1b, pt2a, pt2b PointD) PointD {
-	if IsAlmostZero(pt1a.X - pt1b.X) {
-		if IsAlmostZero(pt2a.X - pt2b.X) {
+	if isAlmostZero(pt1a.X - pt1b.X) {
+		if isAlmostZero(pt2a.X - pt2b.X) {
 
 			return PointD{X: 0, Y: 0}
 		}
@@ -620,7 +620,7 @@ func intersectPoint(pt1a, pt1b, pt2a, pt2b PointD) PointD {
 		return PointD{X: pt1a.X, Y: m2*pt1a.X + b2}
 	}
 
-	if IsAlmostZero(pt2a.X - pt2b.X) { // вторая вертикальная
+	if isAlmostZero(pt2a.X - pt2b.X) { // вторая вертикальная
 		m1 := (pt1b.Y - pt1a.Y) / (pt1b.X - pt1a.X)
 		b1 := pt1a.Y - m1*pt1a.X
 		return PointD{X: pt2a.X, Y: m1*pt2a.X + b1}
@@ -632,7 +632,7 @@ func intersectPoint(pt1a, pt1b, pt2a, pt2b PointD) PointD {
 	m2 := (pt2b.Y - pt2a.Y) / (pt2b.X - pt2a.X)
 	b2 := pt2a.Y - m2*pt2a.X
 
-	if IsAlmostZero(m1 - m2) {
+	if isAlmostZero(m1 - m2) {
 		return PointD{X: 0, Y: 0}
 	}
 

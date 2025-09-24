@@ -112,7 +112,7 @@ type OutPt struct {
 	horz   *HorzSegment
 }
 
-func NewOutPt(pt Point64, outrec *OutRec) *OutPt {
+func newOutPt(pt Point64, outrec *OutRec) *OutPt {
 	out := &OutPt{
 		pt:     pt,
 		outrec: outrec,
@@ -175,23 +175,23 @@ func (l *LocalMinima) Equals(r *LocalMinima) bool {
 	return l.Vertex == r.Vertex
 }
 
-type ReuseableDataContainer64 struct {
+type reuseableDataContainer64 struct {
 	minimaList []*LocalMinima
 	vertexList VertexPoolList
 }
 
-func NewReuseableDataContainer64() *ReuseableDataContainer64 {
-	return &ReuseableDataContainer64{
+func newReuseableDataContainer64() *reuseableDataContainer64 {
+	return &reuseableDataContainer64{
 		minimaList: make([]*LocalMinima, 0),
 		vertexList: make(VertexPoolList, 0),
 	}
 }
 
-func (r *ReuseableDataContainer64) AddPaths(paths Paths64, pt PathType, isOpen bool) {
+func (r *reuseableDataContainer64) AddPaths(paths Paths64, pt PathType, isOpen bool) {
 	addPathsToVertexList(paths, pt, isOpen, &r.minimaList, &r.vertexList)
 }
 
-func (r *ReuseableDataContainer64) Clear() {
+func (r *reuseableDataContainer64) Clear() {
 	r.minimaList = r.minimaList[:0]
 	r.vertexList = r.vertexList[:0]
 }
@@ -353,7 +353,7 @@ func disposeOutPt(op *OutPt) *OutPt {
 	return result
 }
 
-func (c *ClipperBase) fixSelfIntersects(outrec *OutRec) {
+func (c *clipperBase) fixSelfIntersects(outrec *OutRec) {
 	op2 := outrec.pts
 	if op2.prev == op2.next.next {
 		return // треугольник не может сам пересекаться
@@ -756,7 +756,7 @@ func addOutPt(ae *Active, pt Point64) *OutPt {
 		return opBack
 	}
 
-	newOp := NewOutPt(pt, outrec)
+	newOp := newOutPt(pt, outrec)
 	opBack.prev = newOp
 	newOp.prev = opFront
 	newOp.next = opBack
@@ -882,7 +882,7 @@ func findEdgeWithMatchingLocMin(e *Active) *Active {
 }
 
 func duplicateOp(op *OutPt, insertAfter bool) *OutPt {
-	result := NewOutPt(op.pt, op.outrec)
+	result := newOutPt(op.pt, op.outrec)
 	if insertAfter {
 		result.next = op.next
 		//if op.next != nil {

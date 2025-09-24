@@ -154,11 +154,11 @@ func (p *PointD) Scale(scale float64) {
 }
 
 func (p *PointD) Equals(p2 PointD) bool {
-	return IsAlmostZero(p.X-p2.X) && IsAlmostZero(p.Y-p2.Y)
+	return isAlmostZero(p.X-p2.X) && isAlmostZero(p.Y-p2.Y)
 }
 
 func (p *PointD) NEquals(p2 PointD) bool {
-	return !IsAlmostZero(p.X-p2.X) || !IsAlmostZero(p.Y-p2.Y)
+	return !isAlmostZero(p.X-p2.X) || !isAlmostZero(p.Y-p2.Y)
 }
 
 func (p *PointD) Negate() {

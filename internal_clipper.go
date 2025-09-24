@@ -22,22 +22,19 @@ func CrossProduct(pt1, pt2, pt3 Point64) float64 {
 	return float64(pt2.X - pt1.X*pt3.Y - pt2.Y - pt2.Y - pt1.Y*pt3.X - pt2.X)
 }
 
-// If you use Z, implement SetZ accordingly
-// func SetZ(path Path64, Z int64) Path64 { ... }
-
-func CheckPrecision(precision int) {
+func checkPrecision(precision int) {
 	if precision < -8 || precision > 8 {
 		panic(precisionRangeError)
 	}
 }
 
-func IsAlmostZero(value float64) bool {
+func isAlmostZero(value float64) bool {
 	return math.Abs(value) <= floatingPointTolerance
 }
 
-// TriSign returns -1,0,1 but original returns 0,1,-1 mapping; keep same semantics:
+// triSign returns -1,0,1 but original returns 0,1,-1 mapping; keep same semantics:
 // original: if x<0 return -1; return x>1 ? 1 : 0
-func TriSign(x int64) int {
+func triSign(x int64) int {
 	if x < 0 {
 		return -1
 	}
@@ -53,7 +50,7 @@ type UInt128Struct struct {
 }
 
 // MultiplyUInt64 multiplies two uint64 into 128-bit represented by UInt128Struct
-func MultiplyUInt64(a, b uint64) UInt128Struct {
+func multiplyUInt64(a, b uint64) UInt128Struct {
 	x1 := (a & 0xFFFFFFFF) * (b & 0xFFFFFFFF)
 	x2 := (a>>32)*(b&0xFFFFFFFF) + (x1 >> 32)
 	x3 := (a&0xFFFFFFFF)*(b>>32) + (x2 & 0xFFFFFFFF)
@@ -70,11 +67,11 @@ func productsAreEqual(a, b, c, d int64) bool {
 	absC := uint64(math.Abs(float64(c)))
 	absD := uint64(math.Abs(float64(d)))
 
-	mulAB := MultiplyUInt64(absA, absB)
-	mulCD := MultiplyUInt64(absC, absD)
+	mulAB := multiplyUInt64(absA, absB)
+	mulCD := multiplyUInt64(absC, absD)
 
-	signAB := TriSign(a) * TriSign(b)
-	signCD := TriSign(c) * TriSign(d)
+	signAB := triSign(a) * triSign(b)
+	signCD := triSign(c) * triSign(d)
 
 	return mulAB.Lo64 == mulCD.Lo64 &&
 		mulAB.Hi64 == mulCD.Hi64 && signAB == signCD
@@ -101,7 +98,7 @@ func dotProductD(vec1, vec2 PointD) float64 {
 	return vec1.X*vec2.X + vec1.Y*vec2.Y
 }
 
-func CheckCastInt64(val float64) int64 {
+func checkCastInt64(val float64) int64 {
 	if val >= max_coord || val <= min_coord {
 		return Invalid64
 	}
@@ -190,15 +187,12 @@ func getClosestPtOnSegment(offPt, seg1, seg2 Point64) Point64 {
 	} else if q > 1 {
 		q = 1
 	}
-	// use midpoint rounding to even: emulate C# Math.Round(..., MidpointRounding.ToEven)
 	rx := seg1.X + int64(roundToEven(q*dx))
 	ry := seg1.Y + int64(roundToEven(q*dy))
 	return Point64{X: rx, Y: ry}
 }
 
-// Helper: round to nearest integer with ties to even
 func roundToEven(v float64) float64 {
-	// handle NaN/Inf
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return v
 	}

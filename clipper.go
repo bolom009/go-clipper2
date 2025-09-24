@@ -2,44 +2,56 @@ package go_clipper2
 
 import "math"
 
-func IntersectPaths64(subject Paths64, clip Paths64, fillRule FillRule) Paths64 {
-	return BooleanOpPaths64(Intersection, subject, clip, fillRule)
-}
-
-func IntersectPathsD(subject PathsD, clip PathsD, fillRule FillRule, precision int) PathsD {
-	return BooleanOpPathsD(Intersection, subject, clip, fillRule, precision)
-}
-
 func UnionPaths64(subject Paths64, fillRule FillRule) Paths64 {
 	return BooleanOpPaths64(Union, subject, nil, fillRule)
 }
 
-func UnionWithClipPaths64(subject Paths64, clip Paths64, fillRule FillRule) Paths64 {
+func UnionWithClipPaths64(subject, clip Paths64, fillRule FillRule) Paths64 {
 	return BooleanOpPaths64(Union, subject, clip, fillRule)
 }
 
-func UnionPathsD(subject PathsD, fillRule FillRule, precision int) PathsD {
-	return BooleanOpPathsD(Union, subject, nil, fillRule, precision)
+func IntersectWithClipPaths64(subject, clip Paths64, fillRule FillRule) Paths64 {
+	return BooleanOpPaths64(Intersection, subject, clip, fillRule)
 }
 
-func UnionWithClipPathsD(subject PathsD, clip PathsD, fillRule FillRule, precision int) PathsD {
-	return BooleanOpPathsD(Union, subject, clip, fillRule, precision)
-}
-
-func DifferencePaths64(subject Paths64, clip Paths64, fillRule FillRule) Paths64 {
+func DifferenceWithClipPaths64(subject, clip Paths64, fillRule FillRule) Paths64 {
 	return BooleanOpPaths64(Difference, subject, clip, fillRule)
 }
 
-func DifferencePathsD(subject PathsD, clip PathsD, fillRule FillRule, precision int) PathsD {
-	return BooleanOpPathsD(Difference, subject, clip, fillRule, precision)
-}
-
-func XorPaths64(subject Paths64, clip Paths64, fillRule FillRule) Paths64 {
+func XorWithClipPaths64(subject, clip Paths64, fillRule FillRule) Paths64 {
 	return BooleanOpPaths64(Xor, subject, clip, fillRule)
 }
 
-func XorPathsD(subject PathsD, clip PathsD, fillRule FillRule, precision int) PathsD {
-	return BooleanOpPathsD(Xor, subject, clip, fillRule, precision)
+func UnionPathsD(subject PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Union, subject, nil, fillRule, precision...)
+}
+
+func IntersectPathsD(subject PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Intersection, subject, nil, fillRule, precision...)
+}
+
+func DifferencePathsD(subject PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Difference, subject, nil, fillRule, precision...)
+}
+
+func XorPathsD(subject PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Xor, subject, nil, fillRule, precision...)
+}
+
+func UnionWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Union, subject, clip, fillRule, precision...)
+}
+
+func IntersectWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Intersection, subject, clip, fillRule, precision...)
+}
+
+func DifferenceWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Difference, subject, clip, fillRule, precision...)
+}
+
+func XorWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Xor, subject, clip, fillRule, precision...)
 }
 
 func BooleanOpPaths64(clipType ClipType, subject Paths64, clip Paths64, fillRule FillRule) Paths64 {
@@ -58,13 +70,14 @@ func BooleanOpPaths64(clipType ClipType, subject Paths64, clip Paths64, fillRule
 	return solution
 }
 
-func BooleanOpPathsD(clipType ClipType, subject PathsD, clip PathsD, fillRule FillRule, precision int) PathsD {
-	if precision == 0 {
-		precision = 2
+func BooleanOpPathsD(clipType ClipType, subject PathsD, clip PathsD, fillRule FillRule, precision ...int) PathsD {
+	dVal := 2
+	if len(precision) > 0 {
+		dVal = precision[0]
 	}
 
 	solution := make(PathsD, 0)
-	c := NewClipperD(precision)
+	c := NewClipperD(dVal)
 	c.AddPaths(subject, Subject, false)
 	if clip != nil {
 		c.AddPaths(clip, Clip, false)
@@ -111,7 +124,7 @@ func StripDuplicates(path Path64, isClosedPath bool) Path64 {
 	return result
 }
 
-func Area64(path Path64) float64 {
+func area64(path Path64) float64 {
 	if len(path) < 3 {
 		return 0.0
 	}
@@ -124,7 +137,7 @@ func Area64(path Path64) float64 {
 	return a * 0.5
 }
 
-func AreaD(path PathD) float64 {
+func areaD(path PathD) float64 {
 	if len(path) < 3 {
 		return 0.0
 	}
@@ -137,31 +150,31 @@ func AreaD(path PathD) float64 {
 	return a * 0.5
 }
 
-func AreaPaths64(paths Paths64) float64 {
+func areaPaths64(paths Paths64) float64 {
 	a := 0.0
 	for _, path := range paths {
-		a += Area64(path)
+		a += area64(path)
 	}
 	return a
 }
 
-func AreaPathsD(paths PathsD) float64 {
+func areaPathsD(paths PathsD) float64 {
 	a := 0.0
 	for _, path := range paths {
-		a += AreaD(path)
+		a += areaD(path)
 	}
 	return a
 }
 
-func IsPositive64(poly Path64) bool {
-	return Area64(poly) >= 0
+func isPositive64(poly Path64) bool {
+	return area64(poly) >= 0
 }
 
-func IsPositiveD(poly PathD) bool {
-	return AreaD(poly) >= 0
+func isPositiveD(poly PathD) bool {
+	return areaD(poly) >= 0
 }
 
-func OffsetPath(path Path64, dx, dy int64) Path64 {
+func offsetPath(path Path64, dx, dy int64) Path64 {
 	result := make(Path64, len(path))
 	for i, pt := range path {
 		result[i] = Point64{X: pt.X + dx, Y: pt.Y + dy}
@@ -170,7 +183,7 @@ func OffsetPath(path Path64, dx, dy int64) Path64 {
 	return result
 }
 
-func ScaleRect64(rec Rect64, scale float64) Rect64 {
+func scaleRect64(rec Rect64, scale float64) Rect64 {
 	return Rect64{
 		left:   int64(float64(rec.left) * scale),
 		top:    int64(float64(rec.top) * scale),
@@ -179,8 +192,8 @@ func ScaleRect64(rec Rect64, scale float64) Rect64 {
 	}
 }
 
-func ScalePath64(path Path64, scale float64) Path64 {
-	if IsAlmostZero(scale - 1) {
+func scalePath64(path Path64, scale float64) Path64 {
+	if isAlmostZero(scale - 1) {
 		return path
 	}
 
@@ -193,7 +206,7 @@ func ScalePath64(path Path64, scale float64) Path64 {
 }
 
 func ScalePathD(path PathD, scale float64) PathD {
-	if IsAlmostZero(scale - 1) {
+	if isAlmostZero(scale - 1) {
 		return path
 	}
 

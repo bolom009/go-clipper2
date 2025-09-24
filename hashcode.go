@@ -29,8 +29,8 @@ func initGlobalSeed() {
 	globalSeed = binary.LittleEndian.Uint32(b[:])
 }
 
-// CombineHashes combine two values' hashcodes (similar to C# generic Combine<T1,T2>)
-func CombineHashes(hc1 uint32, hc2 uint32) int32 {
+// combineHashes combine two values' hashcodes (similar to C# generic Combine<T1,T2>)
+func combineHashes(hc1 uint32, hc2 uint32) int32 {
 	seedOnce.Do(initGlobalSeed)
 	hash := mixEmptyState()
 	// add length in bytes: two uint32 = 8
@@ -41,8 +41,8 @@ func CombineHashes(hc1 uint32, hc2 uint32) int32 {
 	return int32(hash)
 }
 
-// CombineValues helper for when you have interface{} values and want to combine like C# Combine<T1,T2>
-func CombineValues(v1 interface{}, v2 interface{}) int32 {
+// combineValues helper for when you have interface{} values and want to combine like C# Combine<T1,T2>
+func combineValues(v1 interface{}, v2 interface{}) int32 {
 	var hc1 uint32 = 0
 	var hc2 uint32 = 0
 	if v1 != nil {
@@ -51,7 +51,7 @@ func CombineValues(v1 interface{}, v2 interface{}) int32 {
 	if v2 != nil {
 		hc2 = uint32(hashOf(v2))
 	}
-	return CombineHashes(hc1, hc2)
+	return combineHashes(hc1, hc2)
 }
 
 // queueRound implements RotateLeft(hash + (queuedValue * Prime3), 17) * Prime4

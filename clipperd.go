@@ -2,14 +2,14 @@ package go_clipper2
 
 import "math"
 
-type ClipperD struct {
-	*ClipperBase
+type clipperD struct {
+	*clipperBase
 
 	scale    float64
 	invScale float64
 }
 
-func NewClipperD(roundingDecimalPrecision int) *ClipperD {
+func NewClipperD(roundingDecimalPrecision int) *clipperD {
 	if roundingDecimalPrecision == 0 {
 		roundingDecimalPrecision = 2
 	}
@@ -20,26 +20,26 @@ func NewClipperD(roundingDecimalPrecision int) *ClipperD {
 
 	scale := math.Pow(10, float64(roundingDecimalPrecision))
 
-	return &ClipperD{
-		ClipperBase: NewClipperBase(),
+	return &clipperD{
+		clipperBase: newClipperBase(),
 		scale:       scale,
 		invScale:    1 / scale,
 	}
 }
 
-func (c *ClipperD) AddPaths(paths PathsD, polytype PathType, isOpen bool) {
+func (c *clipperD) AddPaths(paths PathsD, polytype PathType, isOpen bool) {
 	c.addPaths(ScalePathsDToPaths64(paths, c.scale), polytype, isOpen)
 }
 
-func (c *ClipperD) Execute(clipType ClipType, fillRule FillRule, solution PathsD) bool {
+func (c *clipperD) Execute(clipType ClipType, fillRule FillRule, solution PathsD) bool {
 	return c.ExecuteOC(clipType, fillRule, solution, make(PathsD, 0))
 }
 
-func (c *ClipperD) ExecuteOC(clipType ClipType, fillRule FillRule, solutionClosed, solutionOpen PathsD) bool {
+func (c *clipperD) ExecuteOC(clipType ClipType, fillRule FillRule, solutionClosed, solutionOpen PathsD) bool {
 	solClosed64 := make(Paths64, 0)
 	solOpen64 := make(Paths64, 0)
 
-	success := c.ClipperBase.execute(clipType, fillRule, &solClosed64, &solOpen64)
+	success := c.clipperBase.execute(clipType, fillRule, &solClosed64, &solOpen64)
 
 	c.clearSolutionOnly()
 	if !success {
