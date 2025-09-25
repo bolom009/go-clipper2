@@ -29,3 +29,39 @@ func (c *clipper64) ExecuteOC(clipType ClipType, fillRule FillRule, solutionClos
 func (c *clipper64) AddPaths(paths Paths64, polytype PathType, isOpen bool) {
 	c.addPaths(paths, polytype, isOpen)
 }
+
+func UnionPaths64(subject Paths64, fillRule FillRule) Paths64 {
+	return BooleanOpPaths64(Union, subject, nil, fillRule)
+}
+
+func UnionWithClipPaths64(subject, clip Paths64, fillRule FillRule) Paths64 {
+	return BooleanOpPaths64(Union, subject, clip, fillRule)
+}
+
+func IntersectWithClipPaths64(subject, clip Paths64, fillRule FillRule) Paths64 {
+	return BooleanOpPaths64(Intersection, subject, clip, fillRule)
+}
+
+func DifferenceWithClipPaths64(subject, clip Paths64, fillRule FillRule) Paths64 {
+	return BooleanOpPaths64(Difference, subject, clip, fillRule)
+}
+
+func XorWithClipPaths64(subject, clip Paths64, fillRule FillRule) Paths64 {
+	return BooleanOpPaths64(Xor, subject, clip, fillRule)
+}
+
+func BooleanOpPaths64(clipType ClipType, subject Paths64, clip Paths64, fillRule FillRule) Paths64 {
+	if subject == nil {
+		return Paths64{}
+	}
+
+	solution := make(Paths64, 0)
+	c := NewClipper64()
+	c.AddPaths(subject, Subject, false)
+	if clip != nil {
+		c.AddPaths(clip, Clip, false)
+	}
+
+	c.Execute(clipType, fillRule, &solution)
+	return solution
+}

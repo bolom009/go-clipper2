@@ -15,7 +15,7 @@ func NewClipperD(roundingDecimalPrecision int) *clipperD {
 	}
 
 	if roundingDecimalPrecision < -8 || roundingDecimalPrecision > 8 {
-		panic("precision is out of range")
+		panic(ErrPrecisionRange)
 	}
 
 	scale := math.Pow(10, float64(roundingDecimalPrecision))
@@ -57,4 +57,41 @@ func (c *clipperD) ExecuteOC(clipType ClipType, fillRule FillRule, solutionClose
 	}
 
 	return true
+}
+
+func UnionPathsD(subject PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Union, subject, nil, fillRule, precision...)
+}
+
+func UnionWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Union, subject, clip, fillRule, precision...)
+}
+
+func IntersectWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Intersection, subject, clip, fillRule, precision...)
+}
+
+func DifferenceWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Difference, subject, clip, fillRule, precision...)
+}
+
+func XorWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
+	return BooleanOpPathsD(Xor, subject, clip, fillRule, precision...)
+}
+
+func BooleanOpPathsD(clipType ClipType, subject PathsD, clip PathsD, fillRule FillRule, precision ...int) PathsD {
+	dVal := 2
+	if len(precision) > 0 {
+		dVal = precision[0]
+	}
+
+	solution := make(PathsD, 0)
+	c := NewClipperD(dVal)
+	c.AddPaths(subject, Subject, false)
+	if clip != nil {
+		c.AddPaths(clip, Clip, false)
+	}
+
+	c.Execute(clipType, fillRule, &solution)
+	return solution
 }

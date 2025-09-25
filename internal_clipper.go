@@ -1,7 +1,6 @@
 package go_clipper2
 
 import (
-	"errors"
 	"math"
 )
 
@@ -15,16 +14,14 @@ const (
 	defaultMinimumEdgeLength = 0.1
 )
 
-var precisionRangeError = errors.New("Error: Precision is out of range.")
-
 // CrossProduct for three Point64 (pt1->pt2 x pt2->pt3)
 func CrossProduct(pt1, pt2, pt3 Point64) float64 {
-	return float64(pt2.X - pt1.X*pt3.Y - pt2.Y - pt2.Y - pt1.Y*pt3.X - pt2.X)
+	return float64((pt2.X-pt1.X)*(pt3.Y-pt2.Y) - (pt2.Y-pt1.Y)*(pt3.X-pt2.X))
 }
 
 func checkPrecision(precision int) {
 	if precision < -8 || precision > 8 {
-		panic(precisionRangeError)
+		panic(ErrPrecisionRange)
 	}
 }
 
@@ -82,12 +79,12 @@ func isCollinear(pt1, sharedPt, pt2 Point64) bool {
 	b := pt2.Y - sharedPt.Y
 	c := sharedPt.Y - pt1.Y
 	d := pt2.X - sharedPt.X
-	// when coords big, ProductsAreEqual is more accurate
+
 	return productsAreEqual(a, b, c, d)
 }
 
 func dotProduct64(pt1, pt2, pt3 Point64) float64 {
-	return float64(pt2.X-pt1.X)*float64(pt3.X-pt2.X) + float64(pt2.Y-pt1.Y)*float64(pt3.Y-pt2.Y)
+	return float64((pt2.X-pt1.X)*(pt3.X-pt2.X) + (pt2.Y-pt1.Y)*(pt3.Y-pt2.Y))
 }
 
 func crossProductD(vec1, vec2 PointD) float64 {
@@ -149,8 +146,9 @@ func segsIntersect(seg1a, seg1b, seg2a, seg2b Point64, inclusive bool) bool {
 	if res3*res4 > 0 {
 		return false
 	}
+
 	// ensure NOT collinear
-	return !(res1 == 0 && res2 == 0 && res3 == 0 && res4 == 0)
+	return res1 != 0 || res2 != 0 || res3 != 0 || res4 != 0
 }
 
 func getBounds(path Path64) Rect64 {

@@ -1,83 +1,12 @@
 package go_clipper2
 
-import "math"
+import (
+	"math"
 
-func UnionPaths64(subject Paths64, fillRule FillRule) Paths64 {
-	return BooleanOpPaths64(Union, subject, nil, fillRule)
-}
-
-func UnionWithClipPaths64(subject, clip Paths64, fillRule FillRule) Paths64 {
-	return BooleanOpPaths64(Union, subject, clip, fillRule)
-}
-
-func IntersectWithClipPaths64(subject, clip Paths64, fillRule FillRule) Paths64 {
-	return BooleanOpPaths64(Intersection, subject, clip, fillRule)
-}
-
-func DifferenceWithClipPaths64(subject, clip Paths64, fillRule FillRule) Paths64 {
-	return BooleanOpPaths64(Difference, subject, clip, fillRule)
-}
-
-func XorWithClipPaths64(subject, clip Paths64, fillRule FillRule) Paths64 {
-	return BooleanOpPaths64(Xor, subject, clip, fillRule)
-}
-
-func UnionPathsD(subject PathsD, fillRule FillRule, precision ...int) PathsD {
-	return BooleanOpPathsD(Union, subject, nil, fillRule, precision...)
-}
-
-func UnionWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
-	return BooleanOpPathsD(Union, subject, clip, fillRule, precision...)
-}
-
-func IntersectWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
-	return BooleanOpPathsD(Intersection, subject, clip, fillRule, precision...)
-}
-
-func DifferenceWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
-	return BooleanOpPathsD(Difference, subject, clip, fillRule, precision...)
-}
-
-func XorWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int) PathsD {
-	return BooleanOpPathsD(Xor, subject, clip, fillRule, precision...)
-}
-
-func BooleanOpPaths64(clipType ClipType, subject Paths64, clip Paths64, fillRule FillRule) Paths64 {
-	if subject == nil {
-		return Paths64{}
-	}
-
-	solution := make(Paths64, 0)
-	c := NewClipper64()
-	c.AddPaths(subject, Subject, false)
-	if clip != nil {
-		c.AddPaths(clip, Clip, false)
-	}
-
-	c.Execute(clipType, fillRule, &solution)
-	return solution
-}
-
-func BooleanOpPathsD(clipType ClipType, subject PathsD, clip PathsD, fillRule FillRule, precision ...int) PathsD {
-	dVal := 2
-	if len(precision) > 0 {
-		dVal = precision[0]
-	}
-
-	solution := make(PathsD, 0)
-	c := NewClipperD(dVal)
-	c.AddPaths(subject, Subject, false)
-	if clip != nil {
-		c.AddPaths(clip, Clip, false)
-	}
-
-	c.Execute(clipType, fillRule, &solution)
-	return solution
-}
+	"github.com/govalues/decimal"
+)
 
 // TODO
-// InflatePaths64
-// InflatePathsD
 // RectClipPaths64
 // RectClipPath64
 // RectClipPathsD
@@ -87,7 +16,6 @@ func BooleanOpPathsD(clipType ClipType, subject PathsD, clip PathsD, fillRule Fi
 // RectClipLinesPaths64
 // RectClipLinesPathsD
 // RectClipLinesPathD
-// Minkowski methods
 
 func StripDuplicates(path Path64, isClosedPath bool) Path64 {
 	cnt := len(path)
@@ -99,33 +27,38 @@ func StripDuplicates(path Path64, isClosedPath bool) Path64 {
 	lastPt := path[0]
 	result = append(result, lastPt)
 	for i := 1; i < cnt; i++ {
-		if lastPt.X != path[i].X && lastPt.Y != path[i].Y {
+		if lastPt.NEquals(path[i]) {
 			lastPt = path[i]
 			result = append(result, lastPt)
 		}
 	}
 
-	if isClosedPath && lastPt.X == result[0].X && lastPt.Y == result[0].Y {
-		result = result[:len(result)-1]
+	if isClosedPath && lastPt.Equals(result[0]) {
+		var err error
+		result, err = removeAtIndex(result, len(result)-1)
+		if err != nil {
+			panic(ErrInvalidRemoveListIndex)
+		}
 	}
 
 	return result
 }
 
-func area64(path Path64) float64 {
+func Area64(path Path64) float64 {
 	if len(path) < 3 {
 		return 0.0
 	}
-	a := 0.0
+
+	var a int64 = 0
 	prevPt := path[len(path)-1]
 	for _, pt := range path {
-		a += float64(prevPt.Y+pt.Y) * float64(prevPt.X-pt.X)
+		a += (prevPt.Y + pt.Y) * (prevPt.X - pt.X)
 		prevPt = pt
 	}
-	return a * 0.5
+	return float64(a) * 0.5
 }
 
-func areaD(path PathD) float64 {
+func AreaD(path PathD) float64 {
 	if len(path) < 3 {
 		return 0.0
 	}
@@ -138,31 +71,31 @@ func areaD(path PathD) float64 {
 	return a * 0.5
 }
 
-func areaPaths64(paths Paths64) float64 {
+func AreaPaths64(paths Paths64) float64 {
 	a := 0.0
 	for _, path := range paths {
-		a += area64(path)
+		a += Area64(path)
 	}
 	return a
 }
 
-func areaPathsD(paths PathsD) float64 {
+func AreaPathsD(paths PathsD) float64 {
 	a := 0.0
 	for _, path := range paths {
-		a += areaD(path)
+		a += AreaD(path)
 	}
 	return a
 }
 
 func IsPositive64(poly Path64) bool {
-	return area64(poly) >= 0
+	return Area64(poly) >= 0
 }
 
 func IsPositiveD(poly PathD) bool {
-	return areaD(poly) >= 0
+	return AreaD(poly) >= 0
 }
 
-func offsetPath(path Path64, dx, dy int64) Path64 {
+func OffsetPath(path Path64, dx, dy int64) Path64 {
 	result := make(Path64, len(path))
 	for i, pt := range path {
 		result[i] = Point64{X: pt.X + dx, Y: pt.Y + dy}
@@ -171,7 +104,7 @@ func offsetPath(path Path64, dx, dy int64) Path64 {
 	return result
 }
 
-func scaleRect64(rec Rect64, scale float64) Rect64 {
+func ScaleRect64(rec Rect64, scale float64) Rect64 {
 	return Rect64{
 		left:   int64(float64(rec.left) * scale),
 		top:    int64(float64(rec.top) * scale),
@@ -180,7 +113,7 @@ func scaleRect64(rec Rect64, scale float64) Rect64 {
 	}
 }
 
-func scalePath64(path Path64, scale float64) Path64 {
+func ScalePath64(path Path64, scale float64) Path64 {
 	if isAlmostZero(scale - 1) {
 		return path
 	}
@@ -216,9 +149,23 @@ func ScalePathDToPath64(path PathD, scale float64) Path64 {
 }
 
 func ScalePath64ToPathD(path Path64, scale float64) PathD {
+	dScale, _ := decimal.NewFromFloat64(scale)
+
 	result := make(PathD, len(path))
 	for i, pt := range path {
-		result[i] = PointD{X: float64(pt.X) * scale, Y: float64(pt.Y) * scale}
+		ptX, _ := decimal.New(pt.X, 0)
+		ptY, _ := decimal.New(pt.Y, 0)
+
+		mulX, _ := ptX.Mul(dScale)
+		mulY, _ := ptY.Mul(dScale)
+
+		x, _ := mulX.Float64()
+		y, _ := mulY.Float64()
+
+		result[i] = PointD{
+			X: x,
+			Y: y,
+		}
 	}
 
 	return result
@@ -298,11 +245,11 @@ func GetBounds64(path Path64) Rect64 {
 	return result
 }
 
-func pointsNearEqual(pt1, pt2 PointD, distanceSqrd float64) bool {
+func PointsNearEqual(pt1, pt2 PointD, distanceSqrd float64) bool {
 	return sqr(pt1.X-pt2.X)+sqr(pt1.Y-pt2.Y) < distanceSqrd
 }
 
-func perpendicDistFromLineSqrD(pt, line1, line2 PointD) float64 {
+func PerpendicDistFromLineSqrD(pt, line1, line2 PointD) float64 {
 	a := pt.X - line1.X
 	b := pt.Y - line1.Y
 	c := line2.X - line1.X
@@ -315,7 +262,7 @@ func perpendicDistFromLineSqrD(pt, line1, line2 PointD) float64 {
 	return sqr(a*d-c*b) / (c*c + d*d)
 }
 
-func perpendicDistFromLineSqr64(pt, line1, line2 Point64) float64 {
+func PerpendicDistFromLineSqr64(pt, line1, line2 Point64) float64 {
 	a := pt.X - line1.X
 	b := pt.Y - line1.Y
 	c := line2.X - line1.X

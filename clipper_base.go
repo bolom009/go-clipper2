@@ -175,7 +175,7 @@ func (c *clipperBase) cleanCollinear(outrec *OutRec) {
 				return
 			}
 			startOp = op2
-			op2 = startOp
+			//op2 = startOp
 			continue
 		}
 		op2 = op2.next
@@ -382,6 +382,7 @@ func (c *clipperBase) doIntersections(topY int64) {
 }
 
 func (c *clipperBase) processIntersectList() {
+
 	sort.Slice(c.intersectList, func(i, j int) bool {
 		a, b := c.intersectList[i], c.intersectList[j]
 		if a.pt.Y != b.pt.Y {
@@ -521,10 +522,6 @@ func (c *clipperBase) doSplitOp(outrec *OutRec, splitOp *OutPt) {
 	outrec.pts = prevOp
 
 	ip, _ := getSegmentIntersectPt(prevOp.pt, splitOp.pt, splitOp.next.pt, nextNextOp.pt)
-
-	//if c.zCallback != nil {
-	//	c.zCallback(prevOp.pt, splitOp.pt, splitOp.next.pt, nextNextOp.pt, &ip)
-	//}
 
 	area1 := areaOP(prevOp)
 	absArea1 := math.Abs(area1)
@@ -1002,7 +999,7 @@ func (c *clipperBase) insertScanline(y int64) {
 	var err error
 	c.scanlineList, err = insertAtIndex(c.scanlineList, index, y)
 	if err != nil {
-		panic(err)
+		panic(ErrInvalidRemoveListIndex)
 	}
 
 	c.scanlineList[index] = y
@@ -1018,14 +1015,14 @@ func (c *clipperBase) popScanline() (int64, bool) {
 	var err error
 	c.scanlineList, err = removeAtIndex(c.scanlineList, cnt)
 	if err != nil {
-		panic(err)
+		panic(ErrInvalidRemoveListIndex)
 	}
 	//c.scanlineList = c.scanlineList[:cnt]
 	cnt--
 	for cnt >= 0 && c.scanlineList[cnt] == y {
 		c.scanlineList, err = removeAtIndex(c.scanlineList, cnt)
 		if err != nil {
-			panic(err)
+			panic(ErrInvalidRemoveListIndex)
 		}
 		//c.scanlineList = c.scanlineList[:cnt]
 		cnt--
@@ -1036,10 +1033,9 @@ func (c *clipperBase) popScanline() (int64, bool) {
 
 func removeAtIndex[T any](slice []T, index int) ([]T, error) {
 	if index < 0 || index >= len(slice) {
-		return slice, fmt.Errorf("index out of bounds") // Or panic, depending on desired behavior
+		return slice, fmt.Errorf("index out of bounds")
 	}
 
-	// Efficiently remove element by shifting elements
 	slice = append(slice[:index], slice[index+1:]...)
 	return slice, nil
 }
@@ -1065,9 +1061,6 @@ func (c *clipperBase) addReuseableData(reuseableData *reuseableDataContainer64) 
 		return
 	}
 
-	// nb: reuseableData will continue to own the vertices, so it's important
-	// that the reuseableData object isn't destroyed before the Clipper object
-	// that's using the data.
 	c.isSortedMinimaList = false
 	for _, lm := range reuseableData.minimaList {
 		c.minimaList = append(c.minimaList, NewLocalMinima(lm.Vertex, lm.PolyType, lm.IsOpen))
@@ -1441,7 +1434,7 @@ func (c *clipperBase) checkJoinRight(e *Active, pt Point64, checkCurrX bool) {
 	}
 
 	if checkCurrX {
-		if perpendicDistFromLineSqr64(pt, next.bot, next.top) > 0.25 {
+		if PerpendicDistFromLineSqr64(pt, next.bot, next.top) > 0.25 {
 			return
 		}
 	} else if e.curX != next.curX {
@@ -1478,7 +1471,7 @@ func (c *clipperBase) checkJoinLeft(e *Active, pt Point64, checkCurrX bool) {
 	}
 
 	if checkCurrX {
-		if perpendicDistFromLineSqr64(pt, prev.bot, prev.top) > 0.25 {
+		if PerpendicDistFromLineSqr64(pt, prev.bot, prev.top) > 0.25 {
 			return
 		}
 	} else if e.curX != prev.curX {

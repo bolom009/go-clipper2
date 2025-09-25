@@ -223,13 +223,13 @@ func addPathsToVertexList(paths Paths64, polytype PathType, isOpen bool, minimaL
 			if v0 == nil {
 				v0 = vertexList.Add(pt, None, nil)
 				prevV = v0
-			} else if prevV != nil && prevV.pt != pt {
+			} else if prevV.pt != pt {
 				currV := vertexList.Add(pt, None, prevV)
 				prevV.next = currV
 				prevV = currV
 			}
 		}
-		if prevV == nil || prevV.prev == nil {
+		if prevV.prev == nil {
 			continue
 		}
 		if !isOpen && prevV.pt == v0.pt {
@@ -333,21 +333,14 @@ func isVertexOpenEnd(v *Vertex) bool {
 }
 
 func disposeOutPt(op *OutPt) *OutPt {
-	if op == nil {
-		return nil
-	}
-
-	result := op.next
-	if op.next == op {
-		op.next = nil
-		op.prev = nil
-		return nil
+	var result *OutPt = nil
+	if op.next != op {
+		result = op.next
 	}
 
 	op.prev.next = op.next
 	op.next.prev = op.prev
-	op.next = nil
-	op.prev = nil
+
 	return result
 }
 
@@ -386,16 +379,8 @@ func (c *clipperBase) fixSelfIntersects(outrec *OutRec) {
 }
 
 func isValidClosedPath(op *OutPt) bool {
-	if op == nil {
-		return false
-	}
-	if op.next == op {
-		return false
-	}
-	if op.next != op.prev || !isVerySmallTriangle(op) {
-		return true
-	}
-	return false
+	return op != nil && op.next != op &&
+		(op.next != op.prev || !isVerySmallTriangle(op))
 }
 
 func pointsEqual(p1, p2 Point64) bool {
@@ -881,8 +866,8 @@ func duplicateOp(op *OutPt, insertAfter bool) *OutPt {
 		op.next = result
 	} else {
 		result.prev = op.prev
-		//if op.prev != nil {
-		op.prev.next = result
+		//if result.prev != nil {
+		result.prev.next = result
 		//}
 		result.next = op
 		op.prev = result
@@ -926,13 +911,8 @@ func ptsReallyClose(pt1, pt2 Point64) bool {
 }
 
 func isVerySmallTriangle(op *OutPt) bool {
-	if op.next == nil || op.next.next == nil || op.prev == nil {
-		return false
-	}
-	if op.next.next != op.prev {
-		return false
-	}
-	return ptsReallyClose(op.prev.pt, op.next.pt) ||
-		ptsReallyClose(op.pt, op.next.pt) ||
-		ptsReallyClose(op.pt, op.prev.pt)
+	return op.next.next == op.prev &&
+		(ptsReallyClose(op.prev.pt, op.next.pt) ||
+			ptsReallyClose(op.pt, op.next.pt) ||
+			ptsReallyClose(op.pt, op.prev.pt))
 }

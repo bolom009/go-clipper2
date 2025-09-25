@@ -1,10 +1,12 @@
 package go_clipper2
 
-import "math"
+import (
+	"math"
+)
 
 const (
 	Tolerance float64 = 1.0e-12
-	arc_const         = 0.002
+	arc               = 0.002
 )
 
 type JoinType uint8
@@ -26,6 +28,62 @@ const (
 	RoundET
 )
 
+type InflateConfig struct {
+	miterLimit   float64
+	arcTolerance float64
+	precision    int
+}
+
+func InflatePaths64(paths Paths64, delta float64, joinType JoinType, endType EndType, config ...InflateConfig) Paths64 {
+	miterLimit := 2.0
+	arcTolerance := 0.0
+	if len(config) > 0 {
+		cfg := config[0]
+		if cfg.miterLimit != miterLimit {
+			miterLimit = cfg.miterLimit
+		}
+		if cfg.arcTolerance != arcTolerance {
+			arcTolerance = cfg.arcTolerance
+		}
+	}
+
+	co := NewClipperOffset(miterLimit, arcTolerance, false, false)
+	co.AddPaths(paths, joinType, endType)
+	solution := make(Paths64, 0)
+	co.Execute64(delta, &solution)
+	return solution
+}
+
+func InflatePathsD(paths PathsD, delta float64, joinType JoinType, endType EndType, config ...InflateConfig) PathsD {
+	miterLimit := 2.0
+	arcTolerance := 0.0
+	precision := 2
+	if len(config) > 0 {
+		cfg := config[0]
+		if cfg.miterLimit != miterLimit {
+			miterLimit = cfg.miterLimit
+		}
+		if cfg.arcTolerance != arcTolerance {
+			arcTolerance = cfg.arcTolerance
+		}
+		if cfg.precision != precision {
+			precision = cfg.precision
+		}
+	}
+
+	// panic if wrong precision
+	checkPrecision(precision)
+
+	scale := math.Pow(10, float64(precision))
+	tmp := ScalePathsDToPaths64(paths, scale)
+
+	co := NewClipperOffset(miterLimit, scale*arcTolerance, false, false)
+	co.AddPaths(tmp, joinType, endType)
+	co.Execute64(delta*scale, &tmp)
+
+	return ScalePaths64ToPathsD(tmp, 1.0/scale)
+}
+
 type Group struct {
 	inPaths       Paths64
 	joinType      JoinType
@@ -34,21 +92,21 @@ type Group struct {
 	lowestPathIdx int
 }
 
-func NewGroup(paths Paths64, joinType JoinType, endType EndType) *Group {
-	if endType == 0 {
-		endType = Polygon
+func NewGroup(paths Paths64, joinType JoinType, endTypeVal ...EndType) *Group {
+	endType := Polygon
+	if len(endTypeVal) > 0 {
+		endType = endTypeVal[0]
 	}
 
 	group := &Group{
 		joinType: joinType,
 		endType:  endType,
 	}
-	isJoined := endType == Polygon || endType == Joined
+	isGroupJoined := endType == Polygon || endType == Joined
 
 	group.inPaths = make(Paths64, 0, len(paths))
 	for _, path := range paths {
-		cleanPath := StripDuplicates(path, isJoined)
-		group.inPaths = append(group.inPaths, cleanPath)
+		group.inPaths = append(group.inPaths, StripDuplicates(path, isGroupJoined))
 	}
 
 	if endType == Polygon {
@@ -75,7 +133,7 @@ func (g *Group) GetLowestPathInfo() (int, bool) {
 				continue
 			}
 			if a == math.MaxFloat64 {
-				a = area64(path)
+				a = Area64(path)
 				if a == 0 {
 					break
 				}
@@ -99,7 +157,7 @@ type ClipperOffset struct {
 	groupList   []*Group
 	pathOut     Path64
 	normals     PathD
-	solution    Paths64
+	solution    *Paths64
 	groupDelta  float64
 	delta       float64
 	mitLimSqr   float64
@@ -154,22 +212,27 @@ func (co *ClipperOffset) CheckPathsReversed() bool {
 	return false
 }
 
+func (co *ClipperOffset) Execute64(delta float64, solution *Paths64) {
+	co.solution = solution
+	co.executeInternal(delta)
+}
+
 func (co *ClipperOffset) executeInternal(delta float64) {
 	if len(co.groupList) == 0 {
 		return
 	}
 
 	capacity := co.CalcSolutionCapacity()
-	if nCap := cap(co.solution); nCap < capacity {
-		co.solution = make(Paths64, 0, capacity)
+	if nCap := cap(*co.solution); nCap < capacity {
+		*co.solution = make(Paths64, 0, capacity)
 	} else {
-		co.solution = co.solution[:0]
+		*co.solution = (*co.solution)[:0]
 	}
 
 	if math.Abs(delta) < 0.5 {
 		for _, group := range co.groupList {
 			for _, path := range group.inPaths {
-				co.solution = append(co.solution, path)
+				*co.solution = append(*co.solution, path)
 			}
 		}
 		return
@@ -180,7 +243,7 @@ func (co *ClipperOffset) executeInternal(delta float64) {
 	if co.MiterLimit <= 1 {
 		co.mitLimSqr = 2.0
 	} else {
-		co.mitLimSqr = 2.0 / (co.MiterLimit * co.MiterLimit)
+		co.mitLimSqr = 2.0 / sqr(co.MiterLimit)
 	}
 
 	for _, group := range co.groupList {
@@ -199,17 +262,16 @@ func (co *ClipperOffset) executeInternal(delta float64) {
 		fillRule = Positive
 	}
 
-	var c *clipper64
-	c = &clipper64{}
+	c := NewClipper64()
 	c.preserveCollinear = co.PreserveCollinear
 	c.reverseSolution = co.ReverseSolution != pathsReversed
 
-	c.addSubject(co.solution)
+	c.addSubject(*co.solution)
 
 	//if co.solutionTree != nil {
 	//	c.Execute(Union, fillRule, co.solutionTree)
 	//} else {
-	c.Execute(Union, fillRule, &co.solution)
+	c.Execute(Union, fillRule, co.solution)
 	//}
 }
 
@@ -233,9 +295,9 @@ func (co *ClipperOffset) doGroupOffset(group *Group) {
 	co.endType = group.endType
 
 	if group.joinType == Round || group.endType == RoundET {
-		arcTol := co.ArcTolerance
-		if arcTol <= 0.01 {
-			arcTol = absDelta * arc_const
+		arcTol := absDelta * arc
+		if co.ArcTolerance > 0.01 {
+			arcTol = co.ArcTolerance
 		}
 		stepsPer360 := math.Pi / math.Acos(1-arcTol/absDelta)
 		co.stepSin = math.Sin((2 * math.Pi) / stepsPer360)
@@ -247,28 +309,27 @@ func (co *ClipperOffset) doGroupOffset(group *Group) {
 	}
 
 	for _, p := range group.inPaths {
-		c := p
-		path := Path64{}
-		cnt := len(c)
+		co.pathOut = Path64{}
+		cnt := len(p)
 
 		switch cnt {
 		case 1:
-			pt := c[0]
+			pt := p[0]
 			if group.endType == RoundET {
 				steps := int(math.Ceil(co.stepsPerRad * 2 * math.Pi))
-				path = Ellipse64(pt, absDelta, absDelta, steps)
+				co.pathOut = Ellipse64(pt, absDelta, absDelta, steps)
 			} else {
-				d := int(math.Ceil(co.groupDelta))
+				d := int64(math.Ceil(co.groupDelta))
 				r := Rect64{
-					pt.X - int64(d),
-					pt.Y - int64(d),
-					pt.X + int64(d),
-					pt.Y + int64(d),
+					pt.X - d,
+					pt.Y - d,
+					pt.X + d,
+					pt.Y + d,
 				}
-				path = r.AsPath()
+				co.pathOut = r.AsPath()
 			}
 
-			co.solution = append(co.solution, path)
+			*co.solution = append(*co.solution, co.pathOut)
 			continue
 		case 2:
 			if group.endType == Joined {
@@ -280,15 +341,14 @@ func (co *ClipperOffset) doGroupOffset(group *Group) {
 			}
 		}
 
-		co.buildNormals(c)
-
+		co.buildNormals(p)
 		switch co.endType {
 		case Polygon:
-			co.offsetPolygon(group, c)
+			co.offsetPolygon(group, p)
 		case Joined:
-			co.offsetOpenJoined(group, c)
+			co.offsetOpenJoined(group, p)
 		default:
-			co.offsetOpenPath(group, c)
+			co.offsetOpenPath(group, p)
 		}
 	}
 }
@@ -322,13 +382,14 @@ func getUnitNormal(pt1, pt2 Point64) PointD {
 }
 
 func (co *ClipperOffset) offsetPolygon(group *Group, path Path64) {
-	co.pathOut = nil
+	co.pathOut = Path64{}
 	cnt := len(path)
 	prev := cnt - 1
 	for i := 0; i < cnt; i++ {
 		co.offsetPoint(group, path, i, &prev)
 	}
-	co.solution = append(co.solution, co.pathOut)
+
+	*co.solution = append(*co.solution, co.pathOut)
 }
 
 func (co *ClipperOffset) offsetOpenJoined(group *Group, path Path64) {
@@ -386,17 +447,18 @@ func (co *ClipperOffset) offsetOpenPath(group *Group, path Path64) {
 	for i := highI - 1; i > 0; i-- {
 		co.offsetPoint(group, path, i, &k)
 	}
-	co.solution = append(co.solution, co.pathOut)
+
+	*co.solution = append(*co.solution, co.pathOut)
 }
 
-func (co *ClipperOffset) offsetPoint(_ *Group, path Path64, j int, ref *int) {
-	if path[j] == path[*ref] {
-		*ref = j
+func (co *ClipperOffset) offsetPoint(_ *Group, path Path64, j int, k *int) {
+	if path[j] == path[*k] {
+		*k = j
 		return
 	}
 
-	sinA := crossProductD(co.normals[j], co.normals[*ref])
-	cosA := dotProductD(co.normals[j], co.normals[*ref])
+	sinA := crossProductD(co.normals[j], co.normals[*k])
+	cosA := dotProductD(co.normals[j], co.normals[*k])
 
 	if sinA > 1.0 {
 		sinA = 1.0
@@ -404,41 +466,34 @@ func (co *ClipperOffset) offsetPoint(_ *Group, path Path64, j int, ref *int) {
 		sinA = -1.0
 	}
 
-	//if co.DeltaCallback != nil {
-	//	co.groupDelta = co.DeltaCallback(path, co.normals, j, *ref)
-	//	if group.PathsReversed {
-	//		co.groupDelta = -co.groupDelta
-	//	}
-	//}
-
 	if math.Abs(co.groupDelta) < Tolerance {
 		co.pathOut = append(co.pathOut, path[j])
 		return
 	}
 
 	if cosA > -0.999 && (sinA*co.groupDelta < 0) {
-		co.pathOut = append(co.pathOut, co.getPerpendic(path[j], co.normals[*ref]))
+		co.pathOut = append(co.pathOut, co.getPerpendic(path[j], co.normals[*k]))
 		co.pathOut = append(co.pathOut, path[j])
 		co.pathOut = append(co.pathOut, co.getPerpendic(path[j], co.normals[j]))
 	} else if cosA > 0.999 && co.joinType != Round {
-		co.doMiter(path, j, *ref, cosA)
+		co.doMiter(path, j, *k, cosA)
 	} else {
 		switch co.joinType {
 		case Miter:
 			if cosA > co.mitLimSqr-1 {
-				co.doMiter(path, j, *ref, cosA)
+				co.doMiter(path, j, *k, cosA)
 			} else {
-				co.doSquare(path, j, *ref)
+				co.doSquare(path, j, *k)
 			}
 		case Round:
-			co.doRound(path, j, *ref, math.Atan2(sinA, cosA))
+			co.doRound(path, j, *k, math.Atan2(sinA, cosA))
 		case Bevel:
-			co.doBevel(path, j, *ref)
+			co.doBevel(path, j, *k)
 		default:
-			co.doSquare(path, j, *ref)
+			co.doSquare(path, j, *k)
 		}
 	}
-	*ref = j
+	*k = j
 }
 
 func (co *ClipperOffset) getPerpendic(pt Point64, norm PointD) Point64 {
