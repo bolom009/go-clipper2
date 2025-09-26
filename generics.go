@@ -17,6 +17,19 @@ func sqr[T Numeric](val T) T {
 	return val * val
 }
 
+func ReversePath[T any](p []T) []T {
+	n := len(p)
+	if n == 0 {
+		return []T{}
+	}
+
+	rp := make([]T, n)
+	for i := 0; i < n; i++ {
+		rp[i] = p[n-1-i]
+	}
+	return rp
+}
+
 func binarySearch(arr []int64, target int64) int {
 	low := 0
 	high := len(arr) - 1

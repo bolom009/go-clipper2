@@ -9,16 +9,16 @@ type clipperD struct {
 	invScale float64
 }
 
-func NewClipperD(roundingDecimalPrecision int) *clipperD {
-	if roundingDecimalPrecision == 0 {
-		roundingDecimalPrecision = 2
+func NewClipperD(decimalPrecision int) *clipperD {
+	if decimalPrecision == 0 {
+		decimalPrecision = 2
 	}
 
-	if roundingDecimalPrecision < -8 || roundingDecimalPrecision > 8 {
+	if decimalPrecision < -8 || decimalPrecision > 8 {
 		panic(ErrPrecisionRange)
 	}
 
-	scale := math.Pow(10, float64(roundingDecimalPrecision))
+	scale := math.Pow(10, float64(decimalPrecision))
 
 	return &clipperD{
 		clipperBase: newClipperBase(),
@@ -79,14 +79,14 @@ func XorWithClipPathsD(subject, clip PathsD, fillRule FillRule, precision ...int
 	return BooleanOpPathsD(Xor, subject, clip, fillRule, precision...)
 }
 
-func BooleanOpPathsD(clipType ClipType, subject PathsD, clip PathsD, fillRule FillRule, precision ...int) PathsD {
-	dVal := 2
-	if len(precision) > 0 {
-		dVal = precision[0]
+func BooleanOpPathsD(clipType ClipType, subject PathsD, clip PathsD, fillRule FillRule, precisionV ...int) PathsD {
+	precision := 2
+	if len(precisionV) > 0 {
+		precision = precisionV[0]
 	}
 
 	solution := make(PathsD, 0)
-	c := NewClipperD(dVal)
+	c := NewClipperD(precision)
 	c.AddPaths(subject, Subject, false)
 	if clip != nil {
 		c.AddPaths(clip, Clip, false)

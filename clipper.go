@@ -142,7 +142,16 @@ func ScalePathD(path PathD, scale float64) PathD {
 func ScalePathDToPath64(path PathD, scale float64) Path64 {
 	result := make(Path64, len(path))
 	for i, pt := range path {
-		result[i] = Point64{X: int64(pt.X * scale), Y: int64(pt.Y * scale)}
+		mulX := pt.X * scale
+		mulY := pt.Y * scale
+
+		dx, _ := decimal.NewFromFloat64(mulX)
+		dy, _ := decimal.NewFromFloat64(mulY)
+
+		x, _, _ := dx.Int64(0)
+		y, _, _ := dy.Int64(0)
+
+		result[i] = Point64{X: x, Y: y}
 	}
 
 	return result
@@ -162,10 +171,7 @@ func ScalePath64ToPathD(path Path64, scale float64) PathD {
 		x, _ := mulX.Float64()
 		y, _ := mulY.Float64()
 
-		result[i] = PointD{
-			X: x,
-			Y: y,
-		}
+		result[i] = PointD{X: x, Y: y}
 	}
 
 	return result
@@ -298,13 +304,24 @@ func Ellipse64(center Point64, radiusX, radiusY float64, steps int) Path64 {
 	})
 
 	for i := 1; i < steps; i++ {
-		x := dx*co - dy*si
+		xV, _ := decimal.New(center.X, 0)
+		yV, _ := decimal.New(center.Y, 0)
+
+		mxV, _ := decimal.NewFromFloat64(radiusX * dx)
+		myV, _ := decimal.NewFromFloat64(radiusY * dy)
+
+		xsV, _ := xV.Add(mxV)
+		ysV, _ := yV.Add(myV)
+
+		x, _, _ := xsV.Int64(0)
+		y, _, _ := ysV.Int64(0)
+
+		pp := Point64{X: x, Y: y}
+		result = append(result, pp)
+
+		xx := dx*co - dy*si
 		dy = dy*co + dx*si
-		dx = x
-		result = append(result, Point64{
-			X: center.X + int64(radiusX*dx),
-			Y: center.Y + int64(radiusY*dy),
-		})
+		dx = xx
 	}
 	return result
 }
@@ -329,7 +346,10 @@ func EllipseD(center PointD, radiusX, radiusY float64, steps int) PathD {
 	result = append(result, PointD{X: center.X + radiusX, Y: center.Y})
 
 	for i := 1; i < steps; i++ {
-		result = append(result, PointD{X: center.X + radiusX*dx, Y: center.Y + radiusY*dy})
+		result = append(result, PointD{
+			X: center.X + radiusX*dx,
+			Y: center.Y + radiusY*dy,
+		})
 		x := dx*co - dy*si
 		dy = dy*co + dx*si
 		dx = x
@@ -337,14 +357,30 @@ func EllipseD(center PointD, radiusX, radiusY float64, steps int) PathD {
 	return result
 }
 
-func ReversePath64(s Path64) {
-	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
-		s[i], s[j] = s[j], s[i]
+func MakePath64(vals ...int64) Path64 {
+	l := len(vals) / 2
+
+	result := make(Path64, l)
+	for i := 0; i < l; i++ {
+		result[i] = Point64{
+			X: vals[i*2],
+			Y: vals[i*2+1],
+		}
 	}
+
+	return result
 }
 
-func ReversePathD(s PathD) {
-	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
-		s[i], s[j] = s[j], s[i]
+func MakePathD(vals ...float64) PathD {
+	l := len(vals) / 2
+
+	result := make(PathD, l)
+	for i := 0; i < l; i++ {
+		result[i] = PointD{
+			X: vals[i*2],
+			Y: vals[i*2+1],
+		}
 	}
+
+	return result
 }

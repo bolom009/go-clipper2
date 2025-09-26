@@ -1,18 +1,20 @@
 package go_clipper2
 
-import "math"
+import (
+	"math"
+)
 
 func MinkowskiSum64(pattern, path Path64, isClosed bool) Paths64 {
 	return UnionPaths64(minkowskiInternal(pattern, path, true, isClosed), NonZero)
 }
 
-func MinkowskiSumD(pattern, path PathD, isClosed bool, decimalPlaces ...int) PathsD {
-	dVal := 2
-	if len(decimalPlaces) > 0 {
-		dVal = decimalPlaces[0]
+func MinkowskiSumD(pattern, path PathD, isClosed bool, precisionV ...int) PathsD {
+	precision := 2
+	if len(precisionV) > 0 {
+		precision = precisionV[0]
 	}
 
-	scale := math.Pow(10, float64(dVal))
+	scale := math.Pow(10, float64(precision))
 	sPattern := ScalePathDToPath64(pattern, scale)
 	sPath := ScalePathDToPath64(path, scale)
 
@@ -24,13 +26,13 @@ func MinkowskiDiff64(pattern, path Path64, isClosed bool) Paths64 {
 	return UnionPaths64(minkowskiInternal(pattern, path, false, isClosed), NonZero)
 }
 
-func MinkowskiDiffD(pattern, path PathD, isClosed bool, decimalPlaces ...int) PathsD {
-	dVal := 2
-	if len(decimalPlaces) > 0 {
-		dVal = decimalPlaces[0]
+func MinkowskiDiffD(pattern, path PathD, isClosed bool, precisionV ...int) PathsD {
+	precision := 2
+	if len(precisionV) > 0 {
+		precision = precisionV[0]
 	}
 
-	scale := math.Pow(10, float64(dVal))
+	scale := math.Pow(10, float64(precision))
 	sPattern := ScalePathDToPath64(pattern, scale)
 	sPath := ScalePathDToPath64(path, scale)
 
@@ -75,8 +77,8 @@ func minkowskiInternal(pattern Path64, path Path64, isSum bool, isClosed bool) P
 			}
 
 			if !IsPositive64(quad) {
-				ReversePath64(quad)
-				result = append(result, quad)
+				rQuad := ReversePath(quad)
+				result = append(result, rQuad)
 			} else {
 				result = append(result, quad)
 			}

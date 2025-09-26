@@ -19,7 +19,6 @@ func TestInflatePaths64(t *testing.T) {
 		joinType    goclipper2.JoinType
 		endType     goclipper2.EndType
 		overSubject goclipper2.Paths64
-		overClip    goclipper2.Paths64
 		expect      goclipper2.Paths64
 	}{
 		{
@@ -54,7 +53,6 @@ func TestInflatePathsD(t *testing.T) {
 		joinType    goclipper2.JoinType
 		endType     goclipper2.EndType
 		overSubject goclipper2.PathsD
-		overClip    goclipper2.PathsD
 		expect      goclipper2.PathsD
 	}{
 		{

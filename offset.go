@@ -394,10 +394,9 @@ func (co *ClipperOffset) offsetPolygon(group *Group, path Path64) {
 
 func (co *ClipperOffset) offsetOpenJoined(group *Group, path Path64) {
 	co.offsetPolygon(group, path)
-	//path = ReversePath(path)
-	ReversePath64(path)
-	co.buildNormals(path)
-	co.offsetPolygon(group, path)
+	rPath := ReversePath(path)
+	co.buildNormals(rPath)
+	co.offsetPolygon(group, rPath)
 }
 
 func (co *ClipperOffset) offsetOpenPath(group *Group, path Path64) {
