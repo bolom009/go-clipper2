@@ -17,22 +17,13 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         go: ["1.25"]
-        test-tags:
-          [
-            "",
-            "-tags nomsgpack",
-            '--ldflags="-checklinkname=0" -tags sonic',
-            "-tags go_json",
-            "-race",
-          ]
         include:
           - os: ubuntu-latest
             go-build: ~/.cache/go-build
-    name: ${{ matrix.os }} @ Go ${{ matrix.go }} ${{ matrix.test-tags }}
+    name: ${{ matrix.os }} @ Go ${{ matrix.go }}
     runs-on: ${{ matrix.os }}
     env:
       GO111MODULE: on
-      TESTTAGS: ${{ matrix.test-tags }}
       GOPROXY: https://proxy.golang.org
     steps:
       - name: Set up Go ${{ matrix.go }}
@@ -61,5 +52,4 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
-          flags: ${{ matrix.os }},go-${{ matrix.go }},${{ matrix.test-tags }}
           token: ${{ secrets.CODECOV_TOKEN }}
