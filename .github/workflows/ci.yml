@@ -1,0 +1,26 @@
+name: Go Test Coverage
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25' # Specify your desired Go version
+
+      - name: Generate Coverage Profile
+        run: go test ./... -coverprofile=./cover.out
+
+      - name: Check Test Coverage (using go-test-coverage)
+        uses: vladopajic/go-test-coverage@v1
+        with:
+          config: ./.testcoverage.yml # Optional: if you use a config file for thresholds
