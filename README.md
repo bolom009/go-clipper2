@@ -1,5 +1,8 @@
 # Go Clipper2
 
+[![test](https://github.com/bolom009/go-clipper2/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/bolom009/go-clipper2/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/bolom009/go-clipper2/branch/master/graph/badge.svg)](https://codecov.io/gh/bolom009/go-clipper2)
+
 A high-performance pure Go port of
 [Clipper2](https://github.com/AngusJohnson/Clipper2), the industry-standard
 polygon clipping and offsetting library. Go Clipper2 provides robust geometric

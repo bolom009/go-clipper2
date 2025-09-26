@@ -1,4 +1,4 @@
-name: Go Test Coverage
+name: Run Tests
 
 on:
   push:
@@ -8,19 +8,59 @@ on:
     branches:
       - master
 
+permissions:
+  contents: read
+
 jobs:
-  test-coverage:
-    runs-on: ubuntu-latest
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go: ["1.23", "1.24", "1.25"]
+        test-tags:
+          [
+            "",
+            "-tags nomsgpack",
+            '--ldflags="-checklinkname=0" -tags sonic',
+            "-tags go_json",
+            "-race",
+          ]
+        include:
+          - os: ubuntu-latest
+            go-build: ~/.cache/go-build
+          - os: macos-latest
+            go-build: ~/Library/Caches/go-build
+    name: ${{ matrix.os }} @ Go ${{ matrix.go }} ${{ matrix.test-tags }}
+    runs-on: ${{ matrix.os }}
+    env:
+      GO111MODULE: on
+      TESTTAGS: ${{ matrix.test-tags }}
+      GOPROXY: https://proxy.golang.org
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Set up Go ${{ matrix.go }}
+        uses: actions/setup-go@v6
         with:
-          go-version: '1.25' # Specify your desired Go version
+          go-version: ${{ matrix.go }}
+          cache: false
 
-      - name: Generate Coverage Profile
-        run: go test ./... -coverprofile=./cover.out
+      - name: Checkout Code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref }}
 
-      - name: Check Test Coverage (using go-test-coverage)
-        uses: vladopajic/go-test-coverage@v2
-#        with:
-#          config: ./.testcoverage.yml # Optional: if you use a config file for thresholds
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ matrix.go-build }}
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run Tests
+        run: make test
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          flags: ${{ matrix.os }},go-${{ matrix.go }},${{ matrix.test-tags }}
