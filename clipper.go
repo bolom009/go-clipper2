@@ -6,17 +6,6 @@ import (
 	"github.com/govalues/decimal"
 )
 
-// TODO
-// RectClipPaths64
-// RectClipPath64
-// RectClipPathsD
-// RectClipPathD
-// RectClipLines
-// RectClipLinesPaths64
-// RectClipLinesPaths64
-// RectClipLinesPathsD
-// RectClipLinesPathD
-
 func StripDuplicates(path Path64, isClosedPath bool) Path64 {
 	cnt := len(path)
 	if cnt == 0 {
@@ -124,6 +113,15 @@ func ScalePath64(path Path64, scale float64) Path64 {
 	}
 
 	return result
+}
+
+func ScaleRectD(rec RectD, scale float64) Rect64 {
+	return Rect64{
+		left:   int64(rec.left * scale),
+		top:    int64(rec.top * scale),
+		right:  int64(rec.right * scale),
+		bottom: int64(rec.bottom * scale),
+	}
 }
 
 func ScalePathD(path PathD, scale float64) PathD {
@@ -380,6 +378,48 @@ func MakePathD(vals ...float64) PathD {
 			X: vals[i*2],
 			Y: vals[i*2+1],
 		}
+	}
+
+	return result
+}
+
+func TranslatePath64(path Path64, dx, dy int64) Path64 {
+	result := make(Path64, len(path))
+	for i, pt := range path {
+		result[i] = Point64{
+			pt.X + dx,
+			pt.Y + dy,
+		}
+	}
+
+	return result
+}
+
+func TranslatePaths64(paths Paths64, dx, dy int64) Paths64 {
+	result := make(Paths64, len(paths))
+	for i, path := range paths {
+		result[i] = OffsetPath(path, dx, dy)
+	}
+
+	return result
+}
+
+func TranslatePathD(path PathD, dx, dy float64) PathD {
+	result := make(PathD, len(path))
+	for i, pt := range path {
+		result[i] = PointD{
+			pt.X + dx,
+			pt.Y + dy,
+		}
+	}
+
+	return result
+}
+
+func TranslatePathsD(paths PathsD, dx, dy float64) PathsD {
+	result := make(PathsD, len(paths))
+	for i, path := range paths {
+		result[i] = TranslatePathD(path, dx, dy)
 	}
 
 	return result

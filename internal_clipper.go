@@ -215,7 +215,7 @@ func roundToEven(v float64) float64 {
 	}
 }
 
-func pointInPolygon(pt Point64, polygon Path64) PointInPolygonResult {
+func PointInPolygon(pt Point64, polygon Path64) PointInPolygonResult {
 	lenP := len(polygon)
 	if lenP < 3 {
 		return IsOutside
@@ -315,7 +315,7 @@ func pointInPolygon(pt Point64, polygon Path64) PointInPolygonResult {
 func Path2ContainsPath1(path1, path2 Path64) bool {
 	pip := IsOn
 	for _, pt := range path1 {
-		switch pointInPolygon(pt, path2) {
+		switch PointInPolygon(pt, path2) {
 		case IsOutside:
 			if pip == IsOutside {
 				return false
@@ -333,5 +333,5 @@ func Path2ContainsPath1(path1, path2 Path64) bool {
 
 	bounds := getBounds(path1)
 	mp := bounds.MidPoint()
-	return pointInPolygon(mp, path2) != IsOutside
+	return PointInPolygon(mp, path2) != IsOutside
 }
