@@ -32,9 +32,16 @@ type RectClip64 struct {
 	results    []*OutPt2
 	edges      [][]*OutPt2
 	currIdx    int
+
+	getPath func(op *OutPt2) Path64
 }
 
-func NewRectClip64(rect Rect64) *RectClip64 {
+func NewRectClip64(rect Rect64, getPathV ...func(op *OutPt2) Path64) *RectClip64 {
+	getPath := getPathRectClip
+	if len(getPathV) > 0 {
+		getPath = getPathV[0]
+	}
+
 	vEdges := make([][]*OutPt2, 8)
 	for i := 0; i < 8; i++ {
 		vEdges[i] = make([]*OutPt2, 0)
@@ -47,6 +54,7 @@ func NewRectClip64(rect Rect64) *RectClip64 {
 		rectPath: rect.AsPath(),
 		results:  make([]*OutPt2, 0),
 		edges:    vEdges,
+		getPath:  getPath,
 	}
 }
 
@@ -70,9 +78,9 @@ func (r *RectClip64) add(pt Point64, startingNewPath bool) *OutPt2 {
 			ownerIdx: currIdx,
 			next:     prevOp.next,
 		}
-		if prevOp.next != nil {
-			prevOp.next.prev = result
-		}
+		//if prevOp.next != nil {
+		prevOp.next.prev = result
+		//}
 		prevOp.next = result
 		result.prev = prevOp
 		r.results[currIdx] = result
@@ -538,7 +546,7 @@ func (r *RectClip64) tidyEdgePair(idx int, cw, ccw []*OutPt2) {
 			continue
 		}
 
-		isRejoining := p2.ownerIdx != p1.ownerIdx
+		isRejoining := cw[i].ownerIdx != ccw[j].ownerIdx
 
 		if isRejoining {
 			r.results[p2.ownerIdx] = nil
@@ -588,10 +596,10 @@ func (r *RectClip64) tidyEdgePair(idx int, cw, ccw []*OutPt2) {
 			if op2IsLarger == cwIsTowardLarger {
 				cw[i] = op2
 				ccw[j] = nil
-				i++
 				j++
 			} else {
-				ccw[j] = nil
+				ccw[j] = op2
+				cw[i] = nil
 				i++
 			}
 			continue
@@ -600,12 +608,12 @@ func (r *RectClip64) tidyEdgePair(idx int, cw, ccw []*OutPt2) {
 			if opIsLarger == cwIsTowardLarger {
 				cw[i] = op
 				ccw[j] = nil
+				j++
 			} else {
 				ccw[j] = op
 				cw[i] = nil
+				i++
 			}
-			i++
-			j++
 			continue
 		}
 
@@ -615,8 +623,10 @@ func (r *RectClip64) tidyEdgePair(idx int, cw, ccw []*OutPt2) {
 				uncoupleEdge(op2)
 				addToEdge(&cw, op2)
 				ccw[j] = nil
+				j++
 			} else {
 				cw[i] = nil
+				i++
 				ccw[j] = op2
 				uncoupleEdge(op)
 				addToEdge(&ccw, op)
@@ -634,8 +644,6 @@ func (r *RectClip64) tidyEdgePair(idx int, cw, ccw []*OutPt2) {
 				ccw[j] = op2
 			}
 		}
-		i++
-		j++
 	}
 }
 
@@ -961,14 +969,44 @@ func startLocsAreClockwise(startLocs []Location) bool {
 	return result > 0
 }
 
-func getPath(op *OutPt2) Path64 {
+func getPathRectClipLine(op *OutPt2) Path64 {
 	var result Path64
-	if op == nil || op == op.next {
+	if op == nil || op.prev == op.next {
 		return result
 	}
 	op = op.next
 	result = append(result, op.pt)
 	op2 := op.next
+	for op2 != op {
+		result = append(result, op2.pt)
+		op2 = op2.next
+	}
+	return result
+}
+
+func getPathRectClip(op *OutPt2) Path64 {
+	var result Path64
+
+	if op == nil || op.prev == op.next {
+		return result
+	}
+
+	op2 := op.next
+	for op2 != nil && op2 != op {
+		if isCollinear(op2.prev.pt, op2.pt, op2.next.pt) {
+			op = op2.prev
+			op2 = unlinkOp(op2)
+		} else {
+			op2 = op2.next
+		}
+	}
+
+	if op2 == nil {
+		return result
+	}
+
+	result = append(result, op.pt)
+	op2 = op.next
 	for op2 != op {
 		result = append(result, op2.pt)
 		op2 = op2.next

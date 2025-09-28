@@ -35,7 +35,7 @@ func StripDuplicates(path Path64, isClosedPath bool) Path64 {
 
 func Area64(path Path64) float64 {
 	if len(path) < 3 {
-		return 0.0
+		return 0
 	}
 
 	var a int64 = 0
@@ -44,7 +44,14 @@ func Area64(path Path64) float64 {
 		a += (prevPt.Y + pt.Y) * (prevPt.X - pt.X)
 		prevPt = pt
 	}
-	return float64(a) * 0.5
+
+	vA, _ := decimal.New(a, 0)
+	cV, _ := decimal.NewFromFloat64(0.5)
+
+	mV, _ := vA.Mul(cV)
+	res, _ := mV.Float64()
+
+	return res
 }
 
 func AreaD(path PathD) float64 {
@@ -422,5 +429,258 @@ func TranslatePathsD(paths PathsD, dx, dy float64) PathsD {
 		result[i] = TranslatePathD(path, dx, dy)
 	}
 
+	return result
+}
+
+func TrimCollinear64(path Path64, isOpen bool) Path64 {
+	l := len(path)
+	i := 0
+
+	if !isOpen {
+		for i < l-1 && isCollinear(path[l-1], path[i], path[i+1]) {
+			i++
+		}
+		for i < l-1 && isCollinear(path[l-2], path[l-1], path[i]) {
+			l--
+		}
+	}
+
+	if l-i < 3 {
+		if !isOpen || l < 2 || path[0] == path[1] {
+			return Path64{}
+		}
+		return path
+	}
+
+	result := make(Path64, 0, l-i)
+	last := path[i]
+	result = append(result, last)
+	for i++; i < l-1; i++ {
+		if isCollinear(last, path[i], path[i+1]) {
+			continue
+		}
+		last = path[i]
+		result = append(result, last)
+	}
+
+	if isOpen {
+		result = append(result, path[l-1])
+	} else if !isCollinear(last, path[l-1], result[0]) {
+		result = append(result, path[l-1])
+	} else {
+		for len(result) > 2 && isCollinear(result[len(result)-1], result[len(result)-2], result[0]) {
+			result = result[:len(result)-1]
+		}
+		if len(result) < 3 {
+			result = Path64{}
+		}
+	}
+	return result
+}
+
+func TrimCollinearD(path PathD, precision int, isOpen bool) PathD {
+	scale := math.Pow(10, float64(precision))
+	scaledPath := ScalePathDToPath64(path, scale)
+	trimmedPath := TrimCollinear64(scaledPath, isOpen)
+	return ScalePath64ToPathD(trimmedPath, 1/scale)
+}
+
+func getNext(current, high int, flags []bool) int {
+	current++
+	for current <= high && flags[current] {
+		current++
+	}
+	if current <= high {
+		return current
+	}
+	current = 0
+	for flags[current] {
+		current++
+	}
+	return current
+}
+
+func getPrior(current, high int, flags []bool) int {
+	if current == 0 {
+		current = high
+	} else {
+		current--
+	}
+	for current > 0 && flags[current] {
+		current--
+	}
+	if !flags[current] {
+		return current
+	}
+	current = high
+	for flags[current] {
+		current--
+	}
+	return current
+}
+
+func SimplifyPath64(path Path64, epsilon float64, isClosedPath bool) Path64 {
+	l := len(path)
+	high := l - 1
+	epsSq := sqr(epsilon)
+
+	if l < 4 {
+		return path
+	}
+
+	flags := make([]bool, l)
+	dsq := make([]float64, l)
+	curr := 0
+
+	if isClosedPath {
+		dsq[0] = PerpendicDistFromLineSqr64(path[0], path[high], path[1])
+		dsq[high] = PerpendicDistFromLineSqr64(path[high], path[0], path[high-1])
+	} else {
+		dsq[0] = math.MaxFloat64
+		dsq[high] = math.MaxFloat64
+	}
+
+	for i := 1; i < high; i++ {
+		dsq[i] = PerpendicDistFromLineSqr64(path[i], path[i-1], path[i+1])
+	}
+
+	for {
+		if dsq[curr] > epsSq {
+			start := curr
+			for {
+				curr = getNext(curr, high, flags)
+				if curr == start || dsq[curr] <= epsSq {
+					break
+				}
+			}
+			if curr == start {
+				break
+			}
+		}
+		prev := getPrior(curr, high, flags)
+		next := getNext(curr, high, flags)
+		if next == prev {
+			break
+		}
+		var prior2 int
+		if dsq[next] < dsq[curr] {
+			prior2 = prev
+			prev = curr
+			curr = next
+			next = getNext(next, high, flags)
+		} else {
+			prior2 = getPrior(prev, high, flags)
+		}
+
+		flags[curr] = true
+		curr = next
+		next = getNext(next, high, flags)
+		if isClosedPath || (curr != high && curr != 0) {
+			dsq[curr] = PerpendicDistFromLineSqr64(path[curr], path[prev], path[next])
+		}
+		if isClosedPath || (prev != 0 && prev != high) {
+			dsq[prev] = PerpendicDistFromLineSqr64(path[prev], path[prior2], path[curr])
+		}
+	}
+
+	result := make(Path64, 0, l)
+	for i, pt := range path {
+		if !flags[i] {
+			result = append(result, pt)
+		}
+	}
+	return result
+}
+
+func SimplifyPaths64(paths Paths64, epsilon float64, isClosedPaths bool) Paths64 {
+	result := make(Paths64, len(paths))
+	for i, path := range paths {
+		result[i] = SimplifyPath64(path, epsilon, isClosedPaths)
+	}
+	return result
+}
+
+func SimplifyPathD(path PathD, epsilon float64, isClosedPath bool) PathD {
+	length := len(path)
+	high := length - 1
+	epsSq := sqr(epsilon)
+
+	if length < 4 {
+		return path
+	}
+
+	flags := make([]bool, length)
+	dsq := make([]float64, length)
+	curr := 0
+
+	if isClosedPath {
+		dsq[0] = PerpendicDistFromLineSqrD(path[0], path[high], path[1])
+		dsq[high] = PerpendicDistFromLineSqrD(path[high], path[0], path[high-1])
+	} else {
+		dsq[0] = math.MaxFloat64
+		dsq[high] = math.MaxFloat64
+	}
+
+	for i := 1; i < high; i++ {
+		dsq[i] = PerpendicDistFromLineSqrD(path[i], path[i-1], path[i+1])
+	}
+
+	for {
+		if dsq[curr] > epsSq {
+			start := curr
+			for {
+				curr = getNext(curr, high, flags)
+				if curr == start || dsq[curr] <= epsSq {
+					break
+				}
+			}
+			if curr == start {
+				break
+			}
+		}
+
+		prev := getPrior(curr, high, flags)
+		next := getNext(curr, high, flags)
+		if next == prev {
+			break
+		}
+
+		var prior2 int
+		if dsq[next] < dsq[curr] {
+			prior2 = prev
+			prev = curr
+			curr = next
+			next = getNext(next, high, flags)
+		} else {
+			prior2 = getPrior(prev, high, flags)
+		}
+
+		flags[curr] = true
+		curr = next
+		next = getNext(next, high, flags)
+
+		if isClosedPath || (curr != high && curr != 0) {
+			dsq[curr] = PerpendicDistFromLineSqrD(path[curr], path[prev], path[next])
+		}
+		if isClosedPath || (prev != 0 && prev != high) {
+			dsq[prev] = PerpendicDistFromLineSqrD(path[prev], path[prior2], path[curr])
+		}
+	}
+
+	result := make(PathD, 0, length)
+	for i, pt := range path {
+		if !flags[i] {
+			result = append(result, pt)
+		}
+	}
+
+	return result
+}
+
+func SimplifyPathsD(paths PathsD, epsilon float64, isClosedPaths bool) PathsD {
+	result := make(PathsD, len(paths))
+	for i, path := range paths {
+		result[i] = SimplifyPathD(path, epsilon, isClosedPaths)
+	}
 	return result
 }

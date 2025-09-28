@@ -1,6 +1,8 @@
 package go_clipper2
 
-import "math"
+import (
+	"math"
+)
 
 type RectClipLines64 struct {
 	*RectClip64
@@ -8,7 +10,7 @@ type RectClipLines64 struct {
 
 func NewRectClipLines64(rect Rect64) *RectClipLines64 {
 	return &RectClipLines64{
-		NewRectClip64(rect),
+		NewRectClip64(rect, getPathRectClipLine),
 	}
 }
 
@@ -41,10 +43,7 @@ func (r *RectClip64) Execute(paths Paths64) Paths64 {
 		}
 
 		for _, op := range r.results {
-			if op == nil {
-				continue
-			}
-			tmp := getPath(op)
+			tmp := r.getPath(op)
 			if len(tmp) > 0 {
 				result = append(result, tmp)
 			}
