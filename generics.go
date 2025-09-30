@@ -1,19 +1,19 @@
 package go_clipper2
 
-import "fmt"
+import (
+	"fmt"
 
-type Numeric interface {
-	int | int64 | int32 | float64 | float32
-}
+	"golang.org/x/exp/constraints"
+)
 
-func absInt[T Numeric](a T) T {
+func absInt[T constraints.Signed | constraints.Float](a T) T {
 	if a < 0 {
 		return -a
 	}
 	return a
 }
 
-func sqr[T Numeric](val T) T {
+func sqr[T constraints.Signed | constraints.Float](val T) T {
 	return val * val
 }
 
@@ -30,7 +30,7 @@ func ReversePath[T any](p []T) []T {
 	return rp
 }
 
-func binarySearch(arr []int64, target int64) int {
+func binarySearch[T constraints.Ordered](arr []T, target T) int {
 	low := 0
 	high := len(arr) - 1
 
@@ -44,7 +44,7 @@ func binarySearch(arr []int64, target int64) int {
 			high = mid - 1
 		}
 	}
-	return -1
+	return -(low + 1)
 }
 
 func insertAtIndex[T any](slice []T, index int, value T) ([]T, error) {

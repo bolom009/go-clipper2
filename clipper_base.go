@@ -1001,8 +1001,6 @@ func (c *clipperBase) insertScanline(y int64) {
 	if err != nil {
 		panic(ErrInvalidRemoveListIndex)
 	}
-
-	c.scanlineList[index] = y
 }
 
 func (c *clipperBase) popScanline() (int64, bool) {
@@ -1017,14 +1015,12 @@ func (c *clipperBase) popScanline() (int64, bool) {
 	if err != nil {
 		panic(ErrInvalidRemoveListIndex)
 	}
-	//c.scanlineList = c.scanlineList[:cnt]
 	cnt--
 	for cnt >= 0 && c.scanlineList[cnt] == y {
 		c.scanlineList, err = removeAtIndex(c.scanlineList, cnt)
 		if err != nil {
 			panic(ErrInvalidRemoveListIndex)
 		}
-		//c.scanlineList = c.scanlineList[:cnt]
 		cnt--
 	}
 

@@ -179,7 +179,6 @@ func NewClipperOffset(miterLimit, arcTolerance float64, preserveCollinear, rever
 		MergeGroups:       true,
 		PreserveCollinear: preserveCollinear,
 		ReverseSolution:   reverseSolution,
-		groupList:         make([]*Group, 0),
 	}
 }
 
