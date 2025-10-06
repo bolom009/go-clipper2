@@ -29,9 +29,9 @@ const (
 )
 
 type InflateConfig struct {
-	miterLimit   float64
-	arcTolerance float64
-	precision    int
+	MiterLimit   float64
+	ArcTolerance float64
+	Precision    int
 }
 
 func InflatePaths64(paths Paths64, delta float64, joinType JoinType, endType EndType, config ...InflateConfig) Paths64 {
@@ -39,11 +39,11 @@ func InflatePaths64(paths Paths64, delta float64, joinType JoinType, endType End
 	arcTolerance := 0.0
 	if len(config) > 0 {
 		cfg := config[0]
-		if cfg.miterLimit != miterLimit {
-			miterLimit = cfg.miterLimit
+		if cfg.MiterLimit != miterLimit {
+			miterLimit = cfg.MiterLimit
 		}
-		if cfg.arcTolerance != arcTolerance {
-			arcTolerance = cfg.arcTolerance
+		if cfg.ArcTolerance != arcTolerance {
+			arcTolerance = cfg.ArcTolerance
 		}
 	}
 
@@ -60,14 +60,14 @@ func InflatePathsD(paths PathsD, delta float64, joinType JoinType, endType EndTy
 	precision := 2
 	if len(config) > 0 {
 		cfg := config[0]
-		if cfg.miterLimit != miterLimit {
-			miterLimit = cfg.miterLimit
+		if cfg.MiterLimit != miterLimit {
+			miterLimit = cfg.MiterLimit
 		}
-		if cfg.arcTolerance != arcTolerance {
-			arcTolerance = cfg.arcTolerance
+		if cfg.ArcTolerance != arcTolerance {
+			arcTolerance = cfg.ArcTolerance
 		}
-		if cfg.precision != precision {
-			precision = cfg.precision
+		if cfg.Precision != precision {
+			precision = cfg.Precision
 		}
 	}
 
