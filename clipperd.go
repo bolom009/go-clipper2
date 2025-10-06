@@ -31,6 +31,10 @@ func (c *clipperD) AddPaths(paths PathsD, polytype PathType, isOpen bool) {
 	c.addPaths(ScalePathsDToPaths64(paths, c.scale), polytype, isOpen)
 }
 
+func (c *clipperD) AddPathsWithScaleFunc(paths PathsD, polytype PathType, isOpen bool, scaleFn func(paths PathsD, scale float64) Paths64) {
+	c.addPaths(scaleFn(paths, c.scale), polytype, isOpen)
+}
+
 func (c *clipperD) Execute(clipType ClipType, fillRule FillRule, solution *PathsD) bool {
 	solOpen := make(PathsD, 0)
 
