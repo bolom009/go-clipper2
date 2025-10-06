@@ -63,6 +63,28 @@ func (c *clipperD) ExecuteOC(clipType ClipType, fillRule FillRule, solutionClose
 	return true
 }
 
+func (c *clipperD) ExecuteWithScaleFunc(clipType ClipType, fillRule FillRule, solutionClosed, solutionOpen *PathsD, scaleFn func(path Path64, scale float64) PathD) bool {
+	solClosed64 := make(Paths64, 0)
+	solOpen64 := make(Paths64, 0)
+
+	success := c.clipperBase.execute(clipType, fillRule, &solClosed64, &solOpen64)
+
+	c.clearSolutionOnly()
+	if !success {
+		return false
+	}
+
+	for _, path := range solClosed64 {
+		*solutionClosed = append(*solutionClosed, scaleFn(path, c.invScale))
+	}
+
+	for _, path := range solOpen64 {
+		*solutionOpen = append(*solutionOpen, scaleFn(path, c.invScale))
+	}
+
+	return true
+}
+
 func UnionPathsD(subject PathsD, fillRule FillRule, precision ...int) PathsD {
 	return BooleanOpPathsD(Union, subject, nil, fillRule, precision...)
 }
