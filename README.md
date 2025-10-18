@@ -85,6 +85,7 @@ func main() {
 | Path Reversal              | ✅     |
 | Minkowski Operations       | ✅     |
 | PolyTree, PolyPath {64, D} | ✅      |
+| ZCallback                     | ❌      |
 
 **Legend**: ✅ Implemented, ❌ Not implemented, 🚧 In progress
 
