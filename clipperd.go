@@ -1,6 +1,8 @@
 package go_clipper2
 
-import "math"
+import (
+	"math"
+)
 
 type clipperD struct {
 	*clipperBase
@@ -39,6 +41,29 @@ func (c *clipperD) Execute(clipType ClipType, fillRule FillRule, solution *Paths
 	solOpen := make(PathsD, 0)
 
 	return c.ExecuteOC(clipType, fillRule, solution, &solOpen)
+}
+
+func (c *clipperD) ExecutePolyTreeD(clipType ClipType, fillRule FillRule, polytree *PolyTreeD, openPaths *PathsD) bool {
+	c.usingPolyTree = true
+
+	polytree.Clear()
+	*openPaths = (*openPaths)[:0]
+	polytree.SetScale(c.scale)
+	oPaths := make(Paths64, 0)
+
+	c.clipperBase.executeInternal(clipType, fillRule)
+	c.buildTree(polytree.PolyPathBase, &oPaths)
+
+	c.clearSolutionOnly()
+	if !c.succeeded {
+		return false
+	}
+
+	for _, oPath := range oPaths {
+		*openPaths = append(*openPaths, ScalePath64ToPathD(oPath, c.invScale))
+	}
+
+	return true
 }
 
 func (c *clipperD) ExecuteOC(clipType ClipType, fillRule FillRule, solutionClosed, solutionOpen *PathsD) bool {
@@ -120,4 +145,22 @@ func BooleanOpPathsD(clipType ClipType, subject PathsD, clip PathsD, fillRule Fi
 
 	c.Execute(clipType, fillRule, &solution)
 	return solution
+}
+
+func BooleanOpPolyTreeD(clipType ClipType, subject PathsD, clip PathsD, fillRule FillRule, precisionV ...int) *PolyTreeD {
+	precision := 2
+	if len(precisionV) > 0 {
+		precision = precisionV[0]
+	}
+
+	polytree := NewPolyTreeD()
+	c := NewClipperD(precision)
+	c.AddPaths(subject, Subject, false)
+	if clip != nil {
+		c.AddPaths(clip, Clip, false)
+	}
+
+	openPath := make(PathsD, 0)
+	c.ExecutePolyTreeD(clipType, fillRule, polytree, &openPath)
+	return polytree
 }

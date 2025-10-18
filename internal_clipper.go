@@ -335,3 +335,92 @@ func Path2ContainsPath1(path1, path2 Path64) bool {
 	mp := bounds.MidPoint()
 	return PointInPolygon(mp, path2) != IsOutside
 }
+
+func pointInOpPolygon(pt Point64, op *OutPt) PointInPolygonResult {
+	// degenerate polygon
+	if op == op.next || op.prev == op.next {
+		return IsOutside
+	}
+	op2 := op
+	for {
+		if op.pt.Y != pt.Y {
+			break
+		}
+		op = op.next
+		if op == op2 {
+			break
+		}
+	}
+	if op.pt.Y == pt.Y { // not a proper polygon
+		return IsOutside
+	}
+
+	// must be above or below to get here
+	isAbove := op.pt.Y < pt.Y
+	startingAbove := isAbove
+	val := 0
+
+	op2 = op.next
+	for op2 != op {
+		if isAbove {
+			for op2 != op && op2.pt.Y < pt.Y {
+				op2 = op2.next
+			}
+		} else {
+			for op2 != op && op2.pt.Y > pt.Y {
+				op2 = op2.next
+			}
+		}
+		if op2 == op {
+			break
+		}
+
+		// touching the horizontal
+		if op2.pt.Y == pt.Y {
+			if op2.pt.X == pt.X || (op2.pt.Y == op2.prev.pt.Y &&
+				(pt.X < op2.prev.pt.X) != (pt.X < op2.pt.X)) {
+				return IsOn
+			}
+			op2 = op2.next
+			if op2 == op {
+				break
+			}
+			continue
+		}
+
+		if op2.pt.X <= pt.X || op2.prev.pt.X <= pt.X {
+			if op2.prev.pt.X < pt.X && op2.pt.X < pt.X {
+				val = 1 - val
+			} else {
+				d := CrossProduct(op2.prev.pt, op2.pt, pt)
+				if d == 0 {
+					return IsOn
+				}
+				if (d < 0) == isAbove {
+					val = 1 - val
+				}
+			}
+		}
+		isAbove = !isAbove
+		op2 = op2.next
+	}
+
+	if isAbove == startingAbove {
+		if val == 0 {
+			return IsOutside
+		}
+		return IsInside
+	}
+
+	d := CrossProduct(op2.prev.pt, op2.pt, pt)
+	if d == 0 {
+		return IsOn
+	}
+	if (d < 0) == isAbove {
+		val = 1 - val
+	}
+	if val == 0 {
+		return IsOutside
+	}
+	return IsInside
+}

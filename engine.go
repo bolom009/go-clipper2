@@ -626,6 +626,74 @@ func isValidOwner(outRec, testOwner *OutRec) bool {
 	return testOwner == nil
 }
 
+func path1InsidePath2(op1 *OutPt, op2 *OutPt) bool {
+	pip := IsOn
+	op := op1
+	for {
+		switch pointInOpPolygon(op.pt, op2) {
+		case IsOutside:
+			if pip == IsOutside {
+				return false
+			}
+			pip = IsOutside
+		case IsInside:
+			if pip == IsInside {
+				return true
+			}
+			pip = IsInside
+		default:
+			// IsOn — do nothing
+		}
+		op = op.next
+		if op == op1 || op == nil {
+			break
+		}
+	}
+
+	return Path2ContainsPath1(getCleanPath(op1), getCleanPath(op2))
+}
+
+func moveSplits(fromOr, toOr *OutRec) {
+	if fromOr.splits == nil {
+		return
+	}
+
+	if toOr.splits == nil {
+		toOr.splits = make([]int, 0)
+	}
+
+	for i := range fromOr.splits {
+		if i != toOr.idx {
+			toOr.splits = append(toOr.splits, i)
+		}
+	}
+
+	fromOr.splits = nil
+}
+
+func getCleanPath(op *OutPt) Path64 {
+	res := make(Path64, 0)
+	op2 := op
+	for op2.next != op &&
+		((op2.pt.X == op2.next.pt.X && op2.pt.X == op2.prev.pt.X) ||
+			(op2.pt.Y == op2.next.pt.Y && op2.pt.Y == op2.prev.pt.Y)) {
+		op2 = op2.next
+	}
+
+	res = append(res, op2.pt)
+	prevOp := op2
+	op2 = op2.next
+	for op2 != op {
+		if !((op2.pt.X == op2.next.pt.X && op2.pt.X == prevOp.pt.X) ||
+			(op2.pt.Y == op2.next.pt.Y && op2.pt.Y == prevOp.pt.Y)) {
+			res = append(res, op2.pt)
+			prevOp = op2
+		}
+		op2 = op2.next
+	}
+	return res
+}
+
 func uncoupleOutRec(ae *Active) {
 	outrec := ae.outrec
 	if outrec == nil {

@@ -7,47 +7,8 @@ import (
 	"sort"
 )
 
-type PolyPathBase struct {
-	parent   *PolyPathBase
-	children []*PolyPathBase
-}
-
-func NewPolyPathBase(parent *PolyPathBase) *PolyPathBase {
-	return &PolyPathBase{
-		parent:   parent,
-		children: make([]*PolyPathBase, 0),
-	}
-}
-
-func (p *PolyPathBase) AddChild(pth Path64) *PolyPathBase {
-	child := NewPolyPathBase(p)
-	p.children = append(p.children, child)
-	return child
-}
-
-func (p *PolyPathBase) Clear() {
-	p.children = p.children[:0]
-}
-
-func (p *PolyPathBase) GetChildren() []*PolyPathBase {
-	return p.children
-}
-
-func (p *PolyPathBase) Level() int {
-	level := 0
-	pp := p
-	for pp.parent != nil {
-		level++
-		pp = pp.parent
-	}
-	return level
-}
-
-func (p *PolyPathBase) IsHole() bool {
-	return p.Level()%2 == 0 && p.Level() != 0
-}
-
 type clipperBase struct {
+	usingPolyTree      bool
 	preserveCollinear  bool
 	reverseSolution    bool
 	succeeded          bool
@@ -111,11 +72,123 @@ func (c *clipperBase) execute(clipType ClipType, fillRule FillRule,
 	return c.succeeded
 }
 
+func (c *clipperBase) buildTree(polytree *PolyPathBase, solutionOpen *Paths64) {
+	polytree.Clear()
+	*solutionOpen = (*solutionOpen)[:0]
+
+	if c.hasOpenPaths {
+		if cap(c.outrecList) < len(*solutionOpen) {
+			*solutionOpen = make(Paths64, 0, len(c.outrecList))
+		}
+	}
+
+	i := 0
+	for i < len(c.outrecList) {
+		outrec := c.outrecList[i]
+		i++
+		if outrec.pts == nil {
+			continue
+		}
+
+		if outrec.isOpen {
+			openPath := make(Path64, 0)
+			if c.buildPath(outrec.pts, c.reverseSolution, true, &openPath) {
+				*solutionOpen = append(*solutionOpen, openPath)
+			}
+		}
+		if c.checkBounds(outrec) {
+			c.recursiveCheckOwners(outrec, polytree)
+		}
+	}
+}
+
+func (c *clipperBase) recursiveCheckOwners(outrec *OutRec, polypath *PolyPathBase) {
+	if outrec.polypath != nil || outrec.bounds.IsEmpty() {
+		return
+	}
+
+	for outrec.owner != nil {
+		if outrec.owner.splits != nil && c.checkSplitOwner(outrec, outrec.owner.splits) {
+			break
+		}
+		if outrec.owner.pts != nil && c.checkBounds(outrec.owner) &&
+			path1InsidePath2(outrec.pts, outrec.owner.pts) {
+			break
+		}
+		outrec.owner = outrec.owner.owner
+	}
+
+	if outrec.owner != nil {
+		if outrec.owner.polypath == nil {
+			c.recursiveCheckOwners(outrec.owner, polypath)
+		}
+		outrec.polypath = outrec.owner.polypath.AddChild(outrec.path)
+	} else {
+		outrec.polypath = polypath.AddChild(outrec.path)
+	}
+}
+
+func (c *clipperBase) checkSplitOwner(outrec *OutRec, splits []int) bool {
+	for _, i := range splits {
+		split := c.outrecList[i]
+		if split.pts == nil && len(split.splits) > 0 {
+			if c.checkSplitOwner(outrec, split.splits) {
+				return true
+			}
+		}
+
+		split = getRealOutRec(split)
+		if split == nil || split == outrec || split.recursiveSplit == outrec {
+			continue
+		}
+
+		split.recursiveSplit = outrec
+
+		if len(split.splits) > 0 {
+			if c.checkSplitOwner(outrec, split.splits) {
+				return true
+			}
+		}
+
+		if !c.checkBounds(split) ||
+			!split.bounds.Contains(outrec.bounds) ||
+			!path1InsidePath2(outrec.pts, split.pts) {
+			continue
+		}
+
+		if !isValidOwner(outrec, split) {
+			split.owner = outrec.owner
+		}
+
+		outrec.owner = split
+		return true
+	}
+	return false
+}
+
+func (c *clipperBase) checkBounds(outrec *OutRec) bool {
+	if outrec.pts == nil {
+		return false
+	}
+
+	if !outrec.bounds.IsEmpty() {
+		return true
+	}
+
+	c.cleanCollinear(outrec)
+	if outrec.pts == nil || !c.buildPath(outrec.pts, c.reverseSolution, false, &outrec.path) {
+		return false
+	}
+
+	outrec.bounds = getBounds(outrec.path)
+	return true
+}
+
 func (c *clipperBase) buildPaths(solutionClosed, solutionOpen *Paths64) bool {
 	*solutionClosed = (*solutionClosed)[:0]
 	*solutionOpen = (*solutionOpen)[:0]
 
-	if cap(c.outrecList) < len(*solutionClosed) {
+	if cap(c.outrecList) < len(*solutionOpen) {
 		*solutionOpen = make(Paths64, 0, len(c.outrecList))
 	}
 
@@ -130,7 +203,7 @@ func (c *clipperBase) buildPaths(solutionClosed, solutionOpen *Paths64) bool {
 		if outrec.pts == nil {
 			continue
 		}
-		var path []Point64
+		var path = make(Path64, 0)
 		if outrec.isOpen {
 			if c.buildPath(outrec.pts, c.reverseSolution, true, &path) {
 				*solutionOpen = append(*solutionOpen, path)
@@ -187,7 +260,7 @@ func (c *clipperBase) cleanCollinear(outrec *OutRec) {
 	c.fixSelfIntersects(outrec)
 }
 
-func (c *clipperBase) buildPath(op *OutPt, reverse, isOpen bool, path *[]Point64) bool {
+func (c *clipperBase) buildPath(op *OutPt, reverse, isOpen bool, path *Path64) bool {
 	if op == nil || op.next == op || (!isOpen && op.next == op.prev) {
 		return false
 	}
@@ -567,19 +640,21 @@ func (c *clipperBase) doSplitOp(outrec *OutRec, splitOp *OutPt) {
 	splitOp.prev = newOp
 	splitOp.next.next = newOp
 
-	//if c.usingPolyTree {
-	//	if c.path1InsidePath2(prevOp, newOp) {
-	//		if newOutRec.Splits == nil {
-	//			newOutRec.Splits = make([]int, 0)
-	//		}
-	//		newOutRec.Splits = append(newOutRec.Splits, outrec.Index)
-	//	} else {
-	//		if outrec.Splits == nil {
-	//			outrec.Splits = make([]int, 0)
-	//		}
-	//		outrec.Splits = append(outrec.Splits, newOutRec.Index)
-	//	}
-	//}
+	if !c.usingPolyTree {
+		return
+	}
+
+	if path1InsidePath2(prevOp, newOp) {
+		if newOutRec.splits == nil {
+			newOutRec.splits = make([]int, 0)
+		}
+		newOutRec.splits = append(newOutRec.splits, outrec.idx)
+	} else {
+		if outrec.splits == nil {
+			outrec.splits = make([]int, 0)
+		}
+		outrec.splits = append(outrec.splits, newOutRec.idx)
+	}
 }
 
 func (c *clipperBase) adjustCurrXAndCopyToSEL(topY int64) {
@@ -898,34 +973,32 @@ func (c *clipperBase) processHorzJoins() {
 				or1.pts.outrec = or1
 			}
 
-			//if c.usingPolyTree {
-			//	if c.pathInsidePath2(or1.pts, or2.pts) {
-			//		// swap
-			//		or2.pts, or1.pts = or1.pts, or2.pts
-			//		c.fixOutRecPts(or1)
-			//		c.fixOutRecPts(or2)
-			//		or2.owner = or1
-			//	} else if c.pathInsidePath2(or2.pts, or1.pts) {
-			//		or2.owner = or1
-			//	} else {
-			//		or2.owner = or1.owner
-			//	}
-			//	// add to splits list
-			//	if or1.Splits == nil {
-			//		or1.Splits = make([]int, 0)
-			//	}
-			//	or1.Splits = append(or1.Splits, or2.Idx)
-			//} else {
-			or2.owner = or1
-			//}
+			if c.usingPolyTree {
+				if path1InsidePath2(or1.pts, or2.pts) {
+					or2.pts, or1.pts = or1.pts, or2.pts
+					fixOutRecPts(or1)
+					fixOutRecPts(or2)
+					or2.owner = or1
+				} else if path1InsidePath2(or2.pts, or1.pts) {
+					or2.owner = or1
+				} else {
+					or2.owner = or1.owner
+				}
+				if or1.splits == nil {
+					or1.splits = make([]int, 0)
+				}
+				or1.splits = append(or1.splits, or2.idx)
+			} else {
+				or2.owner = or1
+			}
 		} else {
 			or2.pts = nil
-			//if c.usingPolyTree {
-			//	c.setOwner(or2, or1)
-			//	c.moveSplits(or2, or1)
-			//} else {
-			or2.owner = or1
-			//}
+			if c.usingPolyTree {
+				setOwner(or2, or1)
+				moveSplits(or2, or1)
+			} else {
+				or2.owner = or1
+			}
 		}
 	}
 }
@@ -1246,7 +1319,6 @@ func (c *clipperBase) setWindCountForOpenPathEdge(ae *Active) {
 }
 
 func (c *clipperBase) insertLeftEdge(ae *Active) {
-	// insert into AEL (active edge list) keeping order
 	if c.actives == nil {
 		ae.prevInAEL = nil
 		ae.nextInAEL = nil
@@ -1254,7 +1326,6 @@ func (c *clipperBase) insertLeftEdge(ae *Active) {
 		return
 	}
 
-	// if new edge goes before head
 	if !isValidAelOrder(c.actives, ae) {
 		ae.prevInAEL = nil
 		ae.nextInAEL = c.actives
@@ -1267,7 +1338,6 @@ func (c *clipperBase) insertLeftEdge(ae *Active) {
 	for ae2.nextInAEL != nil && isValidAelOrder(ae2.nextInAEL, ae) {
 		ae2 = ae2.nextInAEL
 	}
-	// don't separate joined edges
 	if ae2.joinWith == JoinRight {
 		//if ae2.nextInAEL != nil {
 		ae2 = ae2.nextInAEL
@@ -1283,8 +1353,6 @@ func (c *clipperBase) insertLeftEdge(ae *Active) {
 }
 
 func (c *clipperBase) insertLocalMinimaIntoAEL(botY int64) {
-	// Add any local minima (if any) at botY ...
-	// NB horizontal local minima edges should contain locMin.vertex.prev
 	for c.hasLocMinAtY(botY) {
 		locMin := c.popLocalMinima()
 
@@ -1312,7 +1380,7 @@ func (c *clipperBase) insertLocalMinimaIntoAEL(botY int64) {
 				bot:       locMin.Vertex.pt,
 				curX:      locMin.Vertex.pt.X,
 				windDx:    1,
-				vertexTop: locMin.Vertex.next, // ascending
+				vertexTop: locMin.Vertex.next,
 				top:       locMin.Vertex.next.pt,
 				outrec:    nil,
 				localMin:  locMin,
@@ -1320,8 +1388,6 @@ func (c *clipperBase) insertLocalMinimaIntoAEL(botY int64) {
 			setDx(rightBound)
 		}
 
-		// Currently leftBound is descending, rightBound ascending.
-		// Ensure leftBound is actually left of rightBound, swap if needed.
 		if leftBound != nil && rightBound != nil {
 			if isHorizontal(leftBound) {
 				if isHeadingRightHorz(leftBound) {
@@ -1334,7 +1400,6 @@ func (c *clipperBase) insertLocalMinimaIntoAEL(botY int64) {
 			} else if leftBound.dx < rightBound.dx {
 				swapActives(&leftBound, &rightBound)
 			}
-			// when leftBound.windDx == 1 polygon oriented ccw in Cartesian coords
 		} else if leftBound == nil {
 			leftBound = rightBound
 			rightBound = nil
@@ -1355,7 +1420,6 @@ func (c *clipperBase) insertLocalMinimaIntoAEL(botY int64) {
 		}
 
 		if rightBound != nil {
-			// copy wind counts
 			rightBound.windCount = leftBound.windCount
 			rightBound.windCount2 = leftBound.windCount2
 
@@ -1414,7 +1478,6 @@ func (c *clipperBase) swapPositionsInAEL(ae1, ae2 *Active) {
 }
 
 func (c *clipperBase) checkJoinRight(e *Active, pt Point64, checkCurrX bool) {
-	// next edge in AEL
 	next := e.nextInAEL
 	if next == nil ||
 		!isHotEdge(e) || !isHotEdge(next) ||
@@ -1423,7 +1486,6 @@ func (c *clipperBase) checkJoinRight(e *Active, pt Point64, checkCurrX bool) {
 		return
 	}
 
-	// avoid trivial joins
 	if (pt.Y < e.top.Y+2 || pt.Y < next.top.Y+2) &&
 		(e.bot.Y > pt.Y || next.bot.Y > pt.Y) {
 		return
@@ -1461,7 +1523,7 @@ func (c *clipperBase) checkJoinLeft(e *Active, pt Point64, checkCurrX bool) {
 		isOpen(e) || isOpen(prev) {
 		return
 	}
-	if (pt.Y < e.top.Y+2 || pt.Y < prev.top.Y+2) && // avoid trivial joins
+	if (pt.Y < e.top.Y+2 || pt.Y < prev.top.Y+2) &&
 		(e.bot.Y > pt.Y || prev.bot.Y > pt.Y) {
 		return
 	}
@@ -1507,9 +1569,9 @@ func (c *clipperBase) addLocalMinPoly(ae1, ae2 *Active, pt Point64, isNew bool) 
 		outrec.isOpen = false
 		prevHot := getPrevHotEdge(ae1)
 		if prevHot != nil {
-			//if c.usingPolyTree {
-			//	c.setOwner(outrec, prevHot.outrec)
-			//}
+			if c.usingPolyTree {
+				setOwner(outrec, prevHot.outrec)
+			}
 			outrec.owner = prevHot.outrec
 			if outrecIsAscending(prevHot) == isNew {
 				setSides(outrec, ae2, ae1)
@@ -1544,15 +1606,12 @@ func (c *clipperBase) pushHorz(ae *Active) {
 }
 
 func (c *clipperBase) addLocalMaxPoly(ae1, ae2 *Active, pt Point64) *OutPt {
-	// If joined edges, split at pt first
 	if isJoined(ae1) {
 		c.split(ae1, pt)
 	}
 	if isJoined(ae2) {
 		c.split(ae2, pt)
 	}
-	// If both are front (same side), try to swap front/back for open ends,
-	// otherwise failure (in C# sets _succeeded=false and returns null).
 	if isFront(ae1) == isFront(ae2) {
 		if isOpenEnd(ae1) {
 			swapFrontBackSides(ae1.outrec)
@@ -1566,23 +1625,20 @@ func (c *clipperBase) addLocalMaxPoly(ae1, ae2 *Active, pt Point64) *OutPt {
 
 	result := addOutPt(ae1, pt)
 
-	// same outrec -> finalize and uncouple
 	if ae1.outrec != nil && ae1.outrec == ae2.outrec {
 		outrec := ae1.outrec
 		outrec.pts = result
 
-		//if c.usingPolyTree {
-		//	e := c.getPrevHotEdge(ae1)
-		//	if e == nil {
-		//		outrec.owner = nil
-		//	} else if e.outrec != nil {
-		//		c.setOwner(outrec, e.outrec)
-		//	}
-		//	// note: owner may be fixed later by DeepCheckOwner()
-		//}
+		if c.usingPolyTree {
+			e := getPrevHotEdge(ae1)
+			if e == nil {
+				outrec.owner = nil
+			} else if e.outrec != nil {
+				setOwner(outrec, e.outrec)
+			}
+		}
 		uncoupleOutRec(ae1)
 	} else {
-		// preserve winding orientation of outrec
 		if isOpen(ae1) {
 			if ae1.windDx < 0 {
 				c.joinOutrecPaths(ae1, ae2)
@@ -1618,28 +1674,22 @@ func (c *clipperBase) split(e *Active, currPt Point64) {
 }
 
 func (c *clipperBase) joinOutrecPaths(ae1, ae2 *Active) {
-	// join ae2.outrec path onto ae1.outrec path and then delete ae2.outrec pointers.
-	// (Only very rarely do the joining ends share the same coords.)
 	p1Start := ae1.outrec.pts
 	p2Start := ae2.outrec.pts
 	p1End := p1Start.next
 	p2End := p2Start.next
 	if isFront(ae1) {
-		// link p2End <- p1Start -> p2End.prev = p1Start
 		p2End.prev = p1Start
 		p1Start.next = p2End
-		// link p2Start -> p1End
 		p2Start.next = p1End
 		p1End.prev = p2Start
 		ae1.outrec.pts = p2Start
 
-		// reassign frontEdge
 		ae1.outrec.frontEdge = ae2.outrec.frontEdge
 		if ae1.outrec.frontEdge != nil {
 			ae1.outrec.frontEdge.outrec = ae1.outrec
 		}
 	} else {
-		// other orientation
 		p1End.prev = p2Start
 		p2Start.next = p1End
 		p1Start.next = p2End
@@ -1651,7 +1701,6 @@ func (c *clipperBase) joinOutrecPaths(ae1, ae2 *Active) {
 		}
 	}
 
-	// after joining, the ae2.OutRec must contain no vertices ...
 	ae2.outrec.frontEdge = nil
 	ae2.outrec.backEdge = nil
 	ae2.outrec.pts = nil
@@ -1662,7 +1711,6 @@ func (c *clipperBase) joinOutrecPaths(ae1, ae2 *Active) {
 		ae1.outrec.pts = nil
 	}
 
-	// ae1 and ae2 are maxima and are about to be dropped from Actives list.
 	ae1.outrec = nil
 	ae2.outrec = nil
 }
@@ -1856,7 +1904,7 @@ func (c *clipperBase) intersectEdges(ae1, ae2 *Active, pt Point64) {
 			}
 		case Xor:
 			c.addLocalMinPoly(ae1, ae2, pt, false)
-		default: // ClipTypeIntersection
+		default:
 			if e1Wc2 <= 0 || e2Wc2 <= 0 {
 				return
 			}
