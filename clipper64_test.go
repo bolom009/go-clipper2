@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	goclipper2 "github.com/bolom009/go-clipper2"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBooleanOpPaths64(t *testing.T) {
@@ -104,4 +105,32 @@ func TestBooleanOpPaths64(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPolyTree64(t *testing.T) {
+	subject := make(goclipper2.Paths64, 0)
+	subject = append(subject, goclipper2.MakePath64(0, 0, 100, 0, 100, 100, 0, 100))
+
+	subject = append(subject, goclipper2.MakePath64(10, 10, 10, 30, 25, 30, 25, 10))
+	subject = append(subject, goclipper2.MakePath64(40, 10, 40, 30, 55, 30, 55, 10))
+	subject = append(subject, goclipper2.MakePath64(70, 10, 70, 30, 85, 30, 85, 10))
+	subject = append(subject, goclipper2.MakePath64(10, 40, 10, 90, 90, 90, 90, 40))
+
+	subject = append(subject, goclipper2.MakePath64(20, 45, 80, 45, 80, 75, 20, 75))
+	subject = append(subject, goclipper2.MakePath64(20, 80, 80, 80, 80, 85, 20, 85))
+
+	subject = append(subject, goclipper2.MakePath64(30, 50, 30, 70, 45, 70, 45, 50))
+	subject = append(subject, goclipper2.MakePath64(55, 50, 55, 70, 70, 70, 70, 50))
+
+	polytree := goclipper2.BooleanOpPolyTree64(goclipper2.Union, subject, nil, goclipper2.NonZero)
+	assert.Equal(t, 1, len(polytree.GetChildren()))
+	assert.Equal(t, 4, len(polytree.GetChildren()[0].GetChildren()))
+	assert.Equal(t, 2, len(polytree.GetChildren()[0].GetChildren()[0].GetChildren()))
+	assert.Equal(t, 2, len(polytree.GetChildren()[0].GetChildren()[0].GetChildren()[1].GetChildren()))
+	/*
+		Polytree with 1 polygon.
+		  +- polygon (0) contains 4 holes.
+			+- hole (0) contains 2 nested polygons.
+			  +- polygon (1) contains 2 holes
+	*/
 }

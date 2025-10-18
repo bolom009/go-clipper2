@@ -16,6 +16,20 @@ func (c *clipper64) Execute(clipType ClipType, fillRule FillRule, solution *Path
 	return c.ExecuteOC(clipType, fillRule, solution, &solOpen)
 }
 
+func (c *clipper64) ExecutePolyTree64(clipType ClipType, fillRule FillRule, polytree *PolyTree64, openPaths *PathsD) bool {
+	c.usingPolyTree = true
+
+	polytree.Clear()
+	*openPaths = (*openPaths)[:0]
+	oPaths := make(Paths64, 0)
+
+	c.clipperBase.executeInternal(clipType, fillRule)
+	c.buildTree(polytree.PolyPathBase, &oPaths)
+
+	c.clearSolutionOnly()
+	return c.succeeded
+}
+
 func (c *clipper64) ExecuteOC(clipType ClipType, fillRule FillRule, solutionClosed, solutionOpen *Paths64) bool {
 	*solutionClosed = (*solutionClosed)[:0]
 	*solutionOpen = (*solutionOpen)[:0]
@@ -64,4 +78,17 @@ func BooleanOpPaths64(clipType ClipType, subject Paths64, clip Paths64, fillRule
 
 	c.Execute(clipType, fillRule, &solution)
 	return solution
+}
+
+func BooleanOpPolyTree64(clipType ClipType, subject Paths64, clip Paths64, fillRule FillRule) *PolyTree64 {
+	polytree := NewPolyTree64()
+	c := NewClipper64()
+	c.AddPaths(subject, Subject, false)
+	if clip != nil {
+		c.AddPaths(clip, Clip, false)
+	}
+
+	openPath := make(PathsD, 0)
+	c.ExecutePolyTree64(clipType, fillRule, polytree, &openPath)
+	return polytree
 }
