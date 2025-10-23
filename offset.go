@@ -28,56 +28,67 @@ const (
 	RoundET
 )
 
-type InflateConfig struct {
-	MiterLimit   float64
-	ArcTolerance float64
-	Precision    int
+type InflateOption func(*inflateConfig)
+
+type inflateConfig struct {
+	miterLimit   float64
+	arcTolerance float64
+	precision    int
 }
 
-func InflatePaths64(paths Paths64, delta float64, joinType JoinType, endType EndType, config ...InflateConfig) Paths64 {
-	miterLimit := 2.0
-	arcTolerance := 0.0
-	if len(config) > 0 {
-		cfg := config[0]
-		if cfg.MiterLimit != miterLimit {
-			miterLimit = cfg.MiterLimit
-		}
-		if cfg.ArcTolerance != arcTolerance {
-			arcTolerance = cfg.ArcTolerance
-		}
+func WithMitterLimit(limit float64) InflateOption {
+	return func(config *inflateConfig) {
+		config.miterLimit = limit
+	}
+}
+
+func WithArcTolerance(tolerance float64) InflateOption {
+	return func(config *inflateConfig) {
+		config.arcTolerance = tolerance
+	}
+}
+
+func WithPrecision(precision int) InflateOption {
+	return func(config *inflateConfig) {
+		config.precision = precision
+	}
+}
+
+func InflatePaths64(paths Paths64, delta float64, joinType JoinType, endType EndType, opts ...InflateOption) Paths64 {
+	cfg := &inflateConfig{
+		miterLimit:   2.0,
+		arcTolerance: 0,
 	}
 
-	co := NewClipperOffset(miterLimit, arcTolerance, false, false)
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	co := NewClipperOffset(cfg.miterLimit, cfg.arcTolerance, false, false)
 	co.AddPaths(paths, joinType, endType)
 	solution := make(Paths64, 0)
 	co.Execute64(delta, &solution)
 	return solution
 }
 
-func InflatePathsD(paths PathsD, delta float64, joinType JoinType, endType EndType, config ...InflateConfig) PathsD {
-	miterLimit := 2.0
-	arcTolerance := 0.0
-	precision := 2
-	if len(config) > 0 {
-		cfg := config[0]
-		if cfg.MiterLimit != miterLimit {
-			miterLimit = cfg.MiterLimit
-		}
-		if cfg.ArcTolerance != arcTolerance {
-			arcTolerance = cfg.ArcTolerance
-		}
-		if cfg.Precision != precision {
-			precision = cfg.Precision
-		}
+func InflatePathsD(paths PathsD, delta float64, joinType JoinType, endType EndType, opts ...InflateOption) PathsD {
+	cfg := &inflateConfig{
+		miterLimit:   2.0,
+		arcTolerance: 0,
+		precision:    2,
+	}
+
+	for _, opt := range opts {
+		opt(cfg)
 	}
 
 	// panic if wrong precision
-	checkPrecision(precision)
+	checkPrecision(cfg.precision)
 
-	scale := math.Pow(10, float64(precision))
+	scale := math.Pow(10, float64(cfg.precision))
 	tmp := ScalePathsDToPaths64(paths, scale)
 
-	co := NewClipperOffset(miterLimit, scale*arcTolerance, false, false)
+	co := NewClipperOffset(cfg.miterLimit, scale*cfg.arcTolerance, false, false)
 	co.AddPaths(tmp, joinType, endType)
 	co.Execute64(delta*scale, &tmp)
 

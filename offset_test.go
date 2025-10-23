@@ -2,10 +2,12 @@ package go_clipper2_test
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"testing"
 
 	goclipper2 "github.com/bolom009/go-clipper2"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestInflatePaths64(t *testing.T) {
@@ -90,4 +92,26 @@ func TestInflatePathsD(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestChainInflatePathsD(t *testing.T) {
+	circle := circlePath(5.0, 5.0, 3.0, 32)
+	circle2 := circlePath(7.0, 7.0, 1.0, 32)
+	rectangle := goclipper2.MakePathD(0.0, 0.0, 5.0, 0.0, 5.0, 6.0, 0.0, 6.0)
+	result1 := goclipper2.DifferenceWithClipPathsD(goclipper2.PathsD{circle}, goclipper2.PathsD{circle2, rectangle}, goclipper2.EvenOdd)
+	result2 := goclipper2.InflatePathsD(result1, 1.0, goclipper2.Round, goclipper2.Polygon, goclipper2.WithMitterLimit(0.0))
+
+	assert.Equal(t, 1, len(result2))
+	assert.Equal(t, 117, len(result2[0]))
+}
+
+func circlePath(offsetX, offsetY, radius float64, segments int) goclipper2.PathD {
+	pts := make(goclipper2.PathD, 0, segments)
+	for i := 0; i < segments; i++ {
+		angle := float64(i) / float64(segments) * 2.0 * math.Pi
+		x := math.Sin(angle)*radius + offsetX
+		y := math.Cos(angle)*radius + offsetY
+		pts = append(pts, goclipper2.PointD{X: x, Y: y})
+	}
+	return pts
 }
