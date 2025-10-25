@@ -2,7 +2,9 @@ package go_clipper2_test
 
 import (
 	"fmt"
+	"log"
 	"math"
+	"os"
 	"reflect"
 	"testing"
 
@@ -114,4 +116,164 @@ func circlePath(offsetX, offsetY, radius float64, segments int) goclipper2.PathD
 		pts = append(pts, goclipper2.PointD{X: x, Y: y})
 	}
 	return pts
+}
+
+func TestOffsetCallback(t *testing.T) {
+	const scale = 10
+	const delta = 10.0 * scale
+
+	// ellipse := goclipper2.Ellipse64(goclipper2.Point64{X: 0, Y: 0}, 200*scale, 180*scale, 256)
+	ellipse := goclipper2.PathDToPath64(circlePath(0, 0, scale*180, 100))
+	solution := goclipper2.Paths64{}
+
+	co := goclipper2.NewClipperOffset(0.0, 10.0, true, false)
+	co.AddPaths(goclipper2.Paths64{ellipse}, goclipper2.Miter, goclipper2.RoundET)
+
+	var deltaFunc goclipper2.DeltaCallbackFunc = func(path *goclipper2.Path64, path_normals *goclipper2.PathD, curr_idx, prev_idx uint8) float64 {
+		// gradually scale down the offset to a minimum of 25% of delta
+		midIndex := (uint8(len(*path)) / 2)
+		factor := 1.0 - (float64(curr_idx) / float64(midIndex) * 0.75)
+		return delta * factor
+	}
+	co.SetDeltaCallback(&deltaFunc)
+	co.Execute64(10.0, &solution)
+	log.Println(solution)
+
+	// Visualize multiple paths
+	html := goclipper2.VisualizePaths64HTML(solution, "My Clipped Paths")
+
+	// Save to file
+	os.WriteFile("output.html", []byte(html), 0644)
+}
+
+// Test1 - Variable offset callback that gradually scales down
+func TestOffsetVariableCallback1(t *testing.T) {
+	const scale = 10
+	delta := 10.0 * scale
+
+	co := goclipper2.NewClipperOffset(0.0, 10.0, true, false)
+
+	// Create ellipse
+	subject := goclipper2.Paths64{goclipper2.Ellipse64(goclipper2.Point64{X: 0, Y: 0}, 200*scale, 180*scale, 256)}
+	// Resize to 90% as in C++ version
+	if len(subject[0]) > 0 {
+		newLen := int(float64(len(subject[0])) * 0.9)
+		subject[0] = subject[0][:newLen]
+	}
+
+	co.AddPaths(subject, goclipper2.Miter, goclipper2.RoundET)
+
+	var deltaFunc goclipper2.DeltaCallbackFunc = func(path *goclipper2.Path64, path_normals *goclipper2.PathD, curr_idx, prev_idx uint8) float64 {
+		// gradually scale down the offset to a minimum of 25% of delta
+		high := float64(len(*path)-1) * 1.25
+		return (high - float64(curr_idx)) / high * delta
+	}
+
+	co.SetDeltaCallback(&deltaFunc)
+	solution := goclipper2.Paths64{}
+	co.Execute64(1.0, &solution)
+
+	html := goclipper2.VisualizePaths64HTML(append(subject, solution...), "Test1: Variable Offset - Gradual Scale Down")
+	os.WriteFile("test1.html", []byte(html), 0644)
+	t.Logf("Test1 completed with %d solution paths", len(solution))
+}
+
+// Test2 - Variable offset callback based on distance from middle
+func TestOffsetVariableCallback2(t *testing.T) {
+	const scale = 10
+	delta := 10.0 * scale
+
+	co := goclipper2.NewClipperOffset(0.0, 10.0, true, false)
+
+	// Create ellipse
+	subject := goclipper2.Paths64{goclipper2.Ellipse64(goclipper2.Point64{X: 0, Y: 0}, 200*scale, 180*scale, 256)}
+	// Resize to 90% as in C++ version
+	if len(subject[0]) > 0 {
+		newLen := int(float64(len(subject[0])) * 0.9)
+		subject[0] = subject[0][:newLen]
+	}
+
+	co.AddPaths(subject, goclipper2.Miter, goclipper2.RoundET)
+
+	var deltaFunc goclipper2.DeltaCallbackFunc = func(path *goclipper2.Path64, path_normals *goclipper2.PathD, curr_idx, prev_idx uint8) float64 {
+		// calculate offset based on distance from the middle of the path
+		midIdx := float64(len(*path)) / 2.0
+		absDistance := math.Abs(float64(curr_idx) - midIdx)
+		return delta * (1.0 - 0.70*(absDistance/midIdx))
+	}
+
+	co.SetDeltaCallback(&deltaFunc)
+	solution := goclipper2.Paths64{}
+	co.Execute64(1.0, &solution)
+
+	html := goclipper2.VisualizePaths64HTML(append(subject, solution...), "Test2: Variable Offset - Middle-based")
+	os.WriteFile("test2.html", []byte(html), 0644)
+	t.Logf("Test2 completed with %d solution paths", len(solution))
+}
+
+// Test3 - Variable offset using normal vectors
+func TestOffsetVariableCallback3(t *testing.T) {
+	radius := 5000.0
+	subject := goclipper2.Paths64{goclipper2.Ellipse64(goclipper2.Point64{X: 0, Y: 0}, radius, radius, 200)}
+
+	co := goclipper2.NewClipperOffset(0.0, 10.0, true, false)
+	co.AddPaths(subject, goclipper2.Miter, goclipper2.Polygon)
+
+	var deltaFunc goclipper2.DeltaCallbackFunc = func(path *goclipper2.Path64, path_normals *goclipper2.PathD, curr_idx, prev_idx uint8) float64 {
+		// when multiplying the x & y of edge unit normal vectors, the value will be
+		// largest (0.5) when edges are at 45 deg. and least (-0.5) at negative 45 deg.
+		norm := (*path_normals)[curr_idx]
+		delta := norm.Y * norm.X
+		return radius*0.5 + radius*delta
+	}
+
+	co.SetDeltaCallback(&deltaFunc)
+	solution := goclipper2.Paths64{}
+	co.Execute64(1.0, &solution)
+
+	html := goclipper2.VisualizePaths64HTML(append(subject, solution...), "Test3: Variable Offset - Normal Vector Based")
+	os.WriteFile("test3.html", []byte(html), 0644)
+	t.Logf("Test3 completed with %d solution paths", len(solution))
+}
+
+// Test4 - Variable offset using sin of edge angle
+func TestOffsetVariableCallback4(t *testing.T) {
+	const scale = 100
+	subject := goclipper2.Paths64{goclipper2.Ellipse64(goclipper2.Point64{X: 10 * scale, Y: 10 * scale}, 40*scale, 40*scale, 256)}
+
+	co := goclipper2.NewClipperOffset(0.0, 10.0, true, false)
+	co.AddPaths(subject, goclipper2.Round, goclipper2.RoundET)
+
+	var deltaFunc goclipper2.DeltaCallbackFunc = func(path *goclipper2.Path64, path_normals *goclipper2.PathD, curr_idx, prev_idx uint8) float64 {
+		sinEdge := (*path_normals)[curr_idx].Y
+		return sinEdge * sinEdge * 3 * scale
+	}
+
+	co.SetDeltaCallback(&deltaFunc)
+	solution := goclipper2.Paths64{}
+	co.Execute64(1.0, &solution)
+
+	html := goclipper2.VisualizePaths64HTML(append(subject, solution...), "Test4: Variable Offset - Sin Edge Based")
+	os.WriteFile("test4.html", []byte(html), 0644)
+	t.Logf("Test4 completed with %d solution paths", len(solution))
+}
+
+// Test5 - Variable offset on a line with quadratic delta
+func TestOffsetVariableCallback5(t *testing.T) {
+	subject := goclipper2.Paths64{goclipper2.MakePath64(0, 0, 20, 0, 40, 0, 60, 0, 80, 0, 100, 0)}
+
+	co := goclipper2.NewClipperOffset(0.0, 10.0, true, false)
+	co.AddPaths(subject, goclipper2.Round, goclipper2.Butt)
+
+	var deltaFunc goclipper2.DeltaCallbackFunc = func(path *goclipper2.Path64, path_normals *goclipper2.PathD, curr_idx, prev_idx uint8) float64 {
+		return float64(curr_idx*curr_idx) + 10
+	}
+
+	co.SetDeltaCallback(&deltaFunc)
+	solution := goclipper2.Paths64{}
+	co.Execute64(1.0, &solution)
+
+	html := goclipper2.VisualizePaths64HTML(append(subject, solution...), "Test5: Variable Offset - Quadratic Delta")
+	os.WriteFile("test5.html", []byte(html), 0644)
+	t.Logf("Test5 completed with %d solution paths", len(solution))
 }

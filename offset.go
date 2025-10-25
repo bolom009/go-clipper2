@@ -28,6 +28,8 @@ const (
 	RoundET
 )
 
+type DeltaCallbackFunc func(path *Path64, path_normals *PathD, curr_idx uint8, prev_idx uint8) float64
+
 type InflateOption func(*inflateConfig)
 
 type inflateConfig struct {
@@ -177,6 +179,9 @@ type ClipperOffset struct {
 	stepCos     float64
 	joinType    JoinType
 	endType     EndType
+
+	// callback for dynamic delta
+	deltaCallback *DeltaCallbackFunc
 }
 
 func NewClipperOffset(miterLimit, arcTolerance float64, preserveCollinear, reverseSolution bool) *ClipperOffset {
@@ -225,6 +230,10 @@ func (co *ClipperOffset) CheckPathsReversed() bool {
 func (co *ClipperOffset) Execute64(delta float64, solution *Paths64) {
 	co.solution = solution
 	co.executeInternal(delta)
+}
+
+func (co *ClipperOffset) SetDeltaCallback(deltaCallback *DeltaCallbackFunc) {
+	co.deltaCallback = deltaCallback
 }
 
 func (co *ClipperOffset) executeInternal(delta float64) {
@@ -306,7 +315,7 @@ func (co *ClipperOffset) doGroupOffset(group *Group) {
 
 	if group.joinType == Round || group.endType == RoundET {
 		arcTol := absDelta * arc
-		if co.ArcTolerance > 0.01 {
+		if co.ArcTolerance > Tolerance {
 			arcTol = co.ArcTolerance
 		}
 		stepsPer360 := math.Pi / math.Acos(1-arcTol/absDelta)
@@ -324,6 +333,14 @@ func (co *ClipperOffset) doGroupOffset(group *Group) {
 
 		switch cnt {
 		case 1:
+			if co.deltaCallback != nil {
+				co.groupDelta = (*co.deltaCallback)(&p, &co.normals, 0, 0)
+				if group.pathsReversed {
+					co.groupDelta = -co.groupDelta
+				}
+				absDelta = math.Abs(co.groupDelta)
+			}
+
 			pt := p[0]
 			if group.endType == RoundET {
 				steps := int(math.Ceil(co.stepsPerRad * 2 * math.Pi))
@@ -414,6 +431,10 @@ func (co *ClipperOffset) offsetOpenPath(group *Group, path Path64) {
 	highI := len(path) - 1
 	var delta float64
 
+	if co.deltaCallback != nil {
+		co.groupDelta = (*co.deltaCallback)(&path, &co.normals, 0, 0)
+	}
+
 	if math.Abs(delta) < Tolerance {
 		co.pathOut = append(co.pathOut, path[0])
 	} else {
@@ -439,6 +460,10 @@ func (co *ClipperOffset) offsetOpenPath(group *Group, path Path64) {
 		co.normals[0] = co.normals[highI]
 	}
 
+	if co.deltaCallback != nil {
+		co.groupDelta = (*co.deltaCallback)(&path, &co.normals, uint8(highI), uint8(highI))
+	}
+
 	if math.Abs(delta) < Tolerance {
 		co.pathOut = append(co.pathOut, path[highI])
 	} else {
@@ -460,7 +485,7 @@ func (co *ClipperOffset) offsetOpenPath(group *Group, path Path64) {
 	*co.solution = append(*co.solution, co.pathOut)
 }
 
-func (co *ClipperOffset) offsetPoint(_ *Group, path Path64, j int, k *int) {
+func (co *ClipperOffset) offsetPoint(group *Group, path Path64, j int, k *int) {
 	if path[j] == path[*k] {
 		*k = j
 		return
@@ -473,6 +498,13 @@ func (co *ClipperOffset) offsetPoint(_ *Group, path Path64, j int, k *int) {
 		sinA = 1.0
 	} else if sinA < -1.0 {
 		sinA = -1.0
+	}
+
+	if co.deltaCallback != nil {
+		co.groupDelta = (*co.deltaCallback)(&path, &co.normals, uint8(j), uint8(*k))
+		if group.pathsReversed {
+			co.groupDelta = -co.groupDelta
+		}
 	}
 
 	if math.Abs(co.groupDelta) < Tolerance {
@@ -568,6 +600,25 @@ func (co *ClipperOffset) doBevel(path Path64, j, k int) {
 }
 
 func (co *ClipperOffset) doRound(path Path64, j, k int, angle float64) {
+	// update the groupDelta if the deltaCallbackFunc is set
+	if co.deltaCallback != nil {
+		// when deltaCallback64_ is assigned, group_delta_ won't be constant,
+		// so we'll need to do the following calculations for *every* vertex.
+		abs_delta := math.Abs(co.groupDelta)
+		arcTol := abs_delta * arc
+		if co.ArcTolerance > 0.01 {
+			arcTol = math.Min(abs_delta, co.ArcTolerance)
+		}
+
+		stepsPer360 := math.Min(math.Pi/math.Acos(1-arcTol/abs_delta), abs_delta*math.Pi)
+		co.stepSin = math.Sin((2 * math.Pi) / stepsPer360)
+		co.stepCos = math.Cos((2 * math.Pi) / stepsPer360)
+		if co.groupDelta < 0 {
+			co.stepSin = -co.stepSin
+		}
+		co.stepsPerRad = stepsPer360 / (2 * math.Pi)
+	}
+
 	pt := path[j]
 	offsetVec := PointD{
 		X: co.normals[k].X * co.groupDelta,
