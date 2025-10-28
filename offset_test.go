@@ -120,7 +120,6 @@ func TestOffsetCallback(t *testing.T) {
 	const scale = 10
 	const delta = 10.0 * scale
 
-	// ellipse := goclipper2.Ellipse64(goclipper2.Point64{X: 0, Y: 0}, 200*scale, 180*scale, 256)
 	ellipse := goclipper2.PathDToPath64(circlePath(0, 0, scale*180, 100))
 	solution := goclipper2.Paths64{}
 
