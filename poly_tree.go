@@ -26,27 +26,26 @@ type PolyPath64 struct {
 	*PolyPathBase
 }
 
-// func (p *PolyBase) AddChild(path64 Path64) *PolyBase {}
-
 type PolyPathBase struct {
-	parent *PolyPathBase
-	childs []*PolyPathBase
-
-	scale float64
+	parent  *PolyPathBase
+	childs  []*PolyPathBase
+	polygon Path64
+	scale   float64
 }
 
 func NewPolyPathBase(parent *PolyPathBase) *PolyPathBase {
-	return &PolyPathBase{
-		parent,
-		make([]*PolyPathBase, 0),
-		0,
-	}
+	return &PolyPathBase{parent, make([]*PolyPathBase, 0), make(Path64, 0), 0}
 }
 
 func (p *PolyPathBase) AddChild(pth Path64) *PolyPathBase {
 	child := NewPolyPathBase(p)
+	child.polygon = pth
 	p.childs = append(p.childs, child)
 	return child
+}
+
+func (p *PolyPathBase) Polygon() Path64 {
+	return p.polygon
 }
 
 func (p *PolyPathBase) Count() int {
