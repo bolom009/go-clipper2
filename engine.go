@@ -229,7 +229,7 @@ func addPathsToVertexList(paths Paths64, polytype PathType, isOpen bool, minimaL
 				prevV = currV
 			}
 		}
-		if prevV.prev == nil {
+		if prevV == nil || prevV.prev == nil {
 			continue
 		}
 		if !isOpen && prevV.pt == v0.pt {
