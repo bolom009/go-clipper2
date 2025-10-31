@@ -133,4 +133,18 @@ func TestPolyTreeD(t *testing.T) {
 			+- hole (0) contains 2 nested polygons.
 			  +- polygon (1) contains 2 holes
 	*/
+
+	// [{10000 10000} {0 10000} {0 0} {10000 0}]
+	expected := goclipper2.MakePath64(10000, 10000, 0, 10000, 0, 0, 10000, 0)
+	assert.True(t, reflect.DeepEqual(expected, polytree.GetChildren()[0].Polygon()), "unexpected outer polygon")
+
+	// [{3000 7000} {4500 7000} {4500 5000} {3000 5000}]
+	expected2 := goclipper2.MakePath64(3000, 7000, 4500, 7000, 4500, 5000, 3000, 5000)
+	hole1 := polytree.GetChildren()[0].GetChildren()[0].GetChildren()[1].GetChildren()[0].Polygon()
+	assert.True(t, reflect.DeepEqual(expected2, hole1), "unexpected first nested polygon")
+
+	// [{5500 7000} {7000 7000} {7000 5000} {5500 5000}]
+	expected3 := goclipper2.MakePath64(5500, 7000, 7000, 7000, 7000, 5000, 5500, 5000)
+	hole2 := polytree.GetChildren()[0].GetChildren()[0].GetChildren()[1].GetChildren()[1].Polygon()
+	assert.True(t, reflect.DeepEqual(expected3, hole2), "unexpected second nested polygon")
 }
